@@ -195,55 +195,16 @@ impl Config {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    fn valid_config() -> Config {
-        Config {
-            server: ServerConfig {
-                listen: "0.0.0.0".to_string(),
-                port: 8080,
-                interface: "wlan0".to_string(),
-            },
-            database: DatabaseConfig {
-                path: "/tmp/test.db".to_string(),
-            },
-            admin: AdminConfig {
-                username: "admin".to_string(),
-                password_hash: "$argon2id$v=19$m=19456,t=2,p=1$salt$hash".to_string(),
-                session_timeout_seconds: 3600,
-            },
-            firewall: FirewallConfig {
-                nft_path: "/usr/sbin/nft".to_string(),
-                table_name: "didicafe".to_string(),
-                set_name: "auth_macs".to_string(),
-            },
-            token: TokenConfig {
-                prefix: "DIDI".to_string(),
-                charset: "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".to_string(),
-                length: 8,
-            },
-            rate_limit: RateLimitConfig {
-                max_auth_attempts: 5,
-                auth_window_seconds: 60,
-                ban_after_attempts: 10,
-                ban_duration_seconds: 900,
-            },
-            session: SessionConfig {
-                cleanup_interval_seconds: 30,
-                grace_period_seconds: 10,
-                retention_days: 90,
-            },
-        }
-    }
+    use crate::test_utils::test_config;
 
     #[test]
     fn test_valid_config_passes() {
-        assert!(valid_config().validate().is_ok());
+        assert!(test_config().validate().is_ok());
     }
 
     #[test]
     fn test_port_zero_rejected() {
-        let mut cfg = valid_config();
+        let mut cfg = test_config();
         cfg.server.port = 0;
         let err = cfg.validate().unwrap_err().to_string();
         assert!(err.contains("port"), "expected port error, got: {err}");
@@ -251,22 +212,21 @@ mod tests {
 
     #[test]
     fn test_empty_charset_rejected() {
-        let mut cfg = valid_config();
+        let mut cfg = test_config();
         cfg.token.charset = String::new();
         assert!(cfg.validate().is_err());
     }
 
     #[test]
     fn test_odd_token_length_rejected() {
-        let mut cfg = valid_config();
+        let mut cfg = test_config();
         cfg.token.length = 7;
         assert!(cfg.validate().is_err());
     }
 
     #[test]
     fn test_bad_password_hash_rejected() {
-        let mut cfg = valid_config();
-        cfg.token.length = 8;
+        let mut cfg = test_config();
         cfg.admin.password_hash = "bcrypt$plaintext".to_string();
         let err = cfg.validate().unwrap_err().to_string();
         assert!(
@@ -277,21 +237,21 @@ mod tests {
 
     #[test]
     fn test_ban_below_max_rejected() {
-        let mut cfg = valid_config();
+        let mut cfg = test_config();
         cfg.rate_limit.ban_after_attempts = 3; // below max_auth_attempts=5
         assert!(cfg.validate().is_err());
     }
 
     #[test]
     fn test_firewall_table_name_injection_rejected() {
-        let mut cfg = valid_config();
+        let mut cfg = test_config();
         cfg.firewall.table_name = "didicafe; DROP TABLE".to_string();
         assert!(cfg.validate().is_err());
     }
 
     #[test]
     fn test_firewall_set_name_injection_rejected() {
-        let mut cfg = valid_config();
+        let mut cfg = test_config();
         cfg.firewall.set_name = "auth_macs; rm -rf".to_string();
         assert!(cfg.validate().is_err());
     }

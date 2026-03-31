@@ -12,6 +12,9 @@ mod net;
 mod services;
 mod web;
 
+#[cfg(test)]
+mod test_utils;
+
 #[derive(Parser)]
 #[command(name = "didicafe", about = "Captive portal daemon for time-limited WiFi access")]
 struct Cli {

@@ -197,103 +197,17 @@ async fn privacy_page() -> Result<impl IntoResponse, AppError> {
 
 #[cfg(test)]
 mod tests {
-    use std::net::SocketAddr;
     use std::sync::Arc;
-    use axum::body::Body;
-    use axum::extract::ConnectInfo;
-    use axum::http::{Request, StatusCode};
+    use axum::http::StatusCode;
     use http_body_util::BodyExt;
     use tower::ServiceExt;
 
-    use crate::AppState;
-    use crate::config::{
-        AdminConfig, Config, DatabaseConfig, FirewallConfig,
-        RateLimitConfig, ServerConfig, SessionConfig, TokenConfig,
-    };
-    use crate::db::Database;
+    use crate::test_utils::{test_state, test_get, test_post_form};
     use crate::firewall::MockFirewall;
-    use crate::services::admin_session::AdminSessionStore;
-    use crate::services::rate_limit::RateLimiter;
-
-    async fn test_state() -> Arc<AppState> {
-        let db = Database::open(":memory:").await.unwrap();
-        db.migrate().await.unwrap();
-
-        let config = Config {
-            server: ServerConfig {
-                listen: "127.0.0.1".to_string(),
-                port: 8080,
-                interface: "lo".to_string(),
-            },
-            database: DatabaseConfig {
-                path: ":memory:".to_string(),
-            },
-            admin: AdminConfig {
-                username: "admin".to_string(),
-                password_hash: "$argon2id$v=19$m=19456,t=2,p=1$salt$hash".to_string(),
-                session_timeout_seconds: 3600,
-            },
-            firewall: FirewallConfig {
-                nft_path: "/usr/sbin/nft".to_string(),
-                table_name: "test".to_string(),
-                set_name: "test".to_string(),
-            },
-            token: TokenConfig {
-                prefix: "DIDI".to_string(),
-                charset: "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".to_string(),
-                length: 8,
-            },
-            rate_limit: RateLimitConfig {
-                max_auth_attempts: 5,
-                auth_window_seconds: 60,
-                ban_after_attempts: 10,
-                ban_duration_seconds: 900,
-            },
-            session: SessionConfig {
-                cleanup_interval_seconds: 30,
-                grace_period_seconds: 10,
-                retention_days: 90,
-            },
-        };
-
-        let rate_limiter = RateLimiter::new(&config.rate_limit);
-
-        Arc::new(AppState {
-            db,
-            config,
-            firewall: Arc::new(MockFirewall::new()),
-            admin_sessions: AdminSessionStore::new(3600),
-            rate_limiter,
-        })
-    }
 
     /// Build the portal router for testing.
-    fn portal_router(state: Arc<AppState>) -> axum::Router {
+    fn portal_router(state: std::sync::Arc<crate::AppState>) -> axum::Router {
         super::routes().with_state(state)
-    }
-
-    /// Build a test GET request with fake ConnectInfo extension.
-    fn test_get(uri: &str) -> Request<Body> {
-        let mut req = Request::builder()
-            .uri(uri)
-            .body(Body::empty())
-            .unwrap();
-        req.extensions_mut()
-            .insert(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 12345))));
-        req
-    }
-
-    /// Build a form POST request with fake ConnectInfo extension.
-    fn test_post_form(uri: &str, body: &str) -> Request<Body> {
-        let mut req = Request::builder()
-            .method("POST")
-            .uri(uri)
-            .header("content-type", "application/x-www-form-urlencoded")
-            .body(Body::from(body.to_string()))
-            .unwrap();
-        req.extensions_mut()
-            .insert(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 12345))));
-        req
     }
 
     #[tokio::test]
