@@ -197,11 +197,13 @@ async fn manage_submit(
 ) -> Result<impl IntoResponse, AppError> {
     let message = if let Some(plan_id) = form.plan_id {
         if form.count.unwrap_or(0) > 0 {
+            let token_name = form.name.as_deref();
             let codes = crate::services::token::generate_tokens(
                 &state.db,
                 &state.config.token,
                 plan_id,
                 form.count.unwrap_or(1),
+                token_name,
             ).await.map_err(AppError::Internal)?;
             Some(format!("{} token(s) generated", codes.len()))
         } else {

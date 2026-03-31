@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS plan (
 CREATE TABLE IF NOT EXISTS token (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     code        TEXT NOT NULL UNIQUE,
+    name        TEXT,
     plan_id     INTEGER NOT NULL REFERENCES plan(id),
     status      TEXT NOT NULL DEFAULT 'unused'
                 CHECK (status IN ('unused', 'active', 'expired', 'revoked')),

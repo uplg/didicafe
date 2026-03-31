@@ -328,7 +328,7 @@ mod tests {
 
         // Setup: create plan + token
         let plan_id = state.db.create_plan("1h WiFi", 60, 1000).await.unwrap();
-        state.db.create_token("DIDI-ABCD-EF23", plan_id).await.unwrap();
+        state.db.create_token("DIDI-ABCD-EF23", None, plan_id).await.unwrap();
 
         // POST valid token
         let app = portal_router(Arc::clone(&state));

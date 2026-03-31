@@ -84,6 +84,7 @@ pub struct Plan {
 pub struct Token {
     pub id: i64,
     pub code: String,
+    pub name: Option<String>,
     pub plan_id: i64,
     pub status: String,
     pub created_at: String,

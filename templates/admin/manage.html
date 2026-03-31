@@ -30,6 +30,10 @@
     <details class="mt-lg">
         <summary class="btn btn--outline" data-i18n="admin.tokens.generate">Générer des codes</summary>
         <form method="post" action="/admin/manage" class="mt-md">
+            <div class="form-group">
+                <label for="token_name" data-i18n="admin.tokens.name">Nom</label>
+                <input type="text" id="token_name" name="name" required placeholder="ex: Promo weekend">
+            </div>
             <div class="form-group" style="flex:2">
                 <label for="plan_id" data-i18n="admin.tokens.select_plan">Forfait</label>
                 <select id="plan_id" name="plan_id" required>
@@ -105,6 +109,7 @@
         <table>
             <thead>
                 <tr>
+                    <th data-i18n="admin.tokens.col_name">Nom</th>
                     <th data-i18n="admin.tokens.col_code">Code</th>
                     <th data-i18n="admin.tokens.col_status">Statut</th>
                 </tr>
@@ -112,6 +117,7 @@
             <tbody>
                 {% for t in tokens %}
                 <tr>
+                    <td>{% if let Some(n) = t.name %}{{ n }}{% else %}-{% endif %}</td>
                     <td><code>{{ t.code }}</code></td>
                     <td>
                         {% if t.status == "unused" %}

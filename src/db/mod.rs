@@ -117,11 +117,12 @@ impl Database {
 
     // -- Tokens --
 
-    pub async fn create_token(&self, code: &str, plan_id: i64) -> Result<i64> {
+    pub async fn create_token(&self, code: &str, name: Option<&str>, plan_id: i64) -> Result<i64> {
         let result = sqlx::query(
-            "INSERT INTO token (code, plan_id, status) VALUES (?1, ?2, 'unused')",
+            "INSERT INTO token (code, name, plan_id, status) VALUES (?1, ?2, ?3, 'unused')",
         )
         .bind(code)
+        .bind(name)
         .bind(plan_id)
         .execute(&self.pool)
         .await?;
@@ -130,7 +131,7 @@ impl Database {
 
     pub async fn get_token_by_code(&self, code: &str) -> Result<Option<Token>> {
         let token = sqlx::query_as::<_, Token>(
-            "SELECT t.id, t.code, t.plan_id, t.status, t.created_at, \
+            "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
                     t.redeemed_at, t.expires_at, p.duration_minutes \
              FROM token t JOIN plan p ON t.plan_id = p.id WHERE t.code = ?1",
         )
@@ -142,7 +143,7 @@ impl Database {
 
     pub async fn get_token_by_id(&self, id: i64) -> Result<Option<Token>> {
         let token = sqlx::query_as::<_, Token>(
-            "SELECT t.id, t.code, t.plan_id, t.status, t.created_at, \
+            "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
                     t.redeemed_at, t.expires_at, p.duration_minutes \
              FROM token t JOIN plan p ON t.plan_id = p.id WHERE t.id = ?1",
         )
@@ -176,7 +177,7 @@ impl Database {
         let tokens = match status_filter {
             Some(status) => {
                 sqlx::query_as::<_, Token>(
-                    "SELECT t.id, t.code, t.plan_id, t.status, t.created_at, \
+                    "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
                             t.redeemed_at, t.expires_at, p.duration_minutes \
                      FROM token t JOIN plan p ON t.plan_id = p.id \
                      WHERE t.status = ?1 ORDER BY t.created_at DESC",
@@ -187,7 +188,7 @@ impl Database {
             }
             None => {
                 sqlx::query_as::<_, Token>(
-                    "SELECT t.id, t.code, t.plan_id, t.status, t.created_at, \
+                    "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
                             t.redeemed_at, t.expires_at, p.duration_minutes \
                      FROM token t JOIN plan p ON t.plan_id = p.id \
                      ORDER BY t.created_at DESC",
@@ -361,7 +362,7 @@ mod tests {
         let db = test_db().await;
         let plan_id = db.create_plan("1h", 60, 1000).await.unwrap();
 
-        let token_id = db.create_token("DIDI-ABCD-EF23", plan_id).await.unwrap();
+        let token_id = db.create_token("DIDI-ABCD-EF23", None, plan_id).await.unwrap();
         assert!(token_id > 0);
 
         let token = db.get_token_by_code("DIDI-ABCD-EF23").await.unwrap().unwrap();
@@ -376,7 +377,7 @@ mod tests {
     async fn test_redeem_and_expire_token() {
         let db = test_db().await;
         let plan_id = db.create_plan("1h", 60, 1000).await.unwrap();
-        let token_id = db.create_token("DIDI-TEST-CODE", plan_id).await.unwrap();
+        let token_id = db.create_token("DIDI-TEST-CODE", None, plan_id).await.unwrap();
 
         db.redeem_token(token_id, "2026-12-31 23:59:59").await.unwrap();
         let token = db.get_token_by_id(token_id).await.unwrap().unwrap();
@@ -392,7 +393,7 @@ mod tests {
     async fn test_revoke_token() {
         let db = test_db().await;
         let plan_id = db.create_plan("1h", 60, 1000).await.unwrap();
-        let token_id = db.create_token("DIDI-REVO-KEXX", plan_id).await.unwrap();
+        let token_id = db.create_token("DIDI-REVO-KEXX", None, plan_id).await.unwrap();
 
         db.revoke_token(token_id).await.unwrap();
         let token = db.get_token_by_id(token_id).await.unwrap().unwrap();
@@ -404,8 +405,8 @@ mod tests {
         let db = test_db().await;
         let plan_id = db.create_plan("1h", 60, 1000).await.unwrap();
 
-        let id1 = db.create_token("DIDI-AAAA-BBBB", plan_id).await.unwrap();
-        db.create_token("DIDI-CCCC-DDDD", plan_id).await.unwrap();
+        let id1 = db.create_token("DIDI-AAAA-BBBB", None, plan_id).await.unwrap();
+        db.create_token("DIDI-CCCC-DDDD", None, plan_id).await.unwrap();
         db.revoke_token(id1).await.unwrap();
 
         let all = db.list_tokens(None).await.unwrap();
@@ -426,7 +427,7 @@ mod tests {
     async fn test_create_and_get_session() {
         let db = test_db().await;
         let plan_id = db.create_plan("1h", 60, 1000).await.unwrap();
-        let token_id = db.create_token("DIDI-SESS-TEST", plan_id).await.unwrap();
+        let token_id = db.create_token("DIDI-SESS-TEST", None, plan_id).await.unwrap();
 
         let session_id = db
             .create_session(token_id, "AA:BB:CC:DD:EE:FF", "10.10.0.5", "2099-12-31 23:59:59")
@@ -443,8 +444,8 @@ mod tests {
     async fn test_active_sessions() {
         let db = test_db().await;
         let plan_id = db.create_plan("1h", 60, 1000).await.unwrap();
-        let t1 = db.create_token("DIDI-ACT1-TEST", plan_id).await.unwrap();
-        let t2 = db.create_token("DIDI-ACT2-TEST", plan_id).await.unwrap();
+        let t1 = db.create_token("DIDI-ACT1-TEST", None, plan_id).await.unwrap();
+        let t2 = db.create_token("DIDI-ACT2-TEST", None, plan_id).await.unwrap();
 
         db.create_session(t1, "AA:11:22:33:44:55", "10.10.0.1", "2099-12-31 23:59:59")
             .await
@@ -466,7 +467,7 @@ mod tests {
     async fn test_expire_session() {
         let db = test_db().await;
         let plan_id = db.create_plan("1h", 60, 1000).await.unwrap();
-        let token_id = db.create_token("DIDI-EXPR-TEST", plan_id).await.unwrap();
+        let token_id = db.create_token("DIDI-EXPR-TEST", None, plan_id).await.unwrap();
         let session_id = db
             .create_session(token_id, "CC:DD:EE:FF:00:11", "10.10.0.3", "2099-12-31 23:59:59")
             .await

@@ -48,6 +48,7 @@ pub struct UpdatePlanRequest {
 pub struct GenerateTokensRequest {
     plan_id: i64,
     count: usize,
+    name: String,
 }
 
 #[derive(Deserialize)]
@@ -150,6 +151,9 @@ async fn generate_tokens(
     _admin: AdminSession,
     Json(req): Json<GenerateTokensRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+    if req.name.is_empty() {
+        return Err(AppError::BadRequest("name must not be empty".to_string()));
+    }
     if req.count == 0 {
         return Err(AppError::BadRequest("count must be > 0".to_string()));
     }
@@ -170,6 +174,7 @@ async fn generate_tokens(
         &state.config.token,
         req.plan_id,
         req.count,
+        Some(&req.name),
     ).await.map_err(AppError::Internal)?;
     Ok((StatusCode::CREATED, ApiResponse::success(serde_json::json!({ "tokens": codes }))))
 }

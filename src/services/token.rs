@@ -52,6 +52,7 @@ pub async fn generate_tokens(
     config: &TokenConfig,
     plan_id: i64,
     count: usize,
+    name: Option<&str>,
 ) -> Result<Vec<String>> {
     // Generate all codes synchronously first (ThreadRng is !Send,
     // so it must not be held across .await points).
@@ -74,7 +75,7 @@ pub async fn generate_tokens(
 
     // Insert all generated codes into the database
     for code in &codes {
-        db.create_token(code, plan_id).await?;
+        db.create_token(code, name, plan_id).await?;
     }
 
     Ok(codes)
