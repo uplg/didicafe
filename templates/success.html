@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}DidiCafe{% endblock %}
+
+{% block body %}
+<main class="container" role="main">
+    <div class="card text-center">
+        <div class="brand">
+            <div class="brand-icon" aria-hidden="true">D</div>
+            <h1 data-i18n="success.title">Tafiditra!</h1>
+        </div>
+
+        <div class="status-ring status-ring--active" aria-hidden="true">
+            <span class="status-ring-inner">&#10003;</span>
+        </div>
+
+        <p class="countdown-label" data-i18n="success.remaining">Fotoana sisa</p>
+        <div class="countdown" id="countdown" role="timer" aria-live="polite" aria-atomic="true">
+            {{ remaining_minutes }}:00
+        </div>
+
+        <p class="text-muted text-sm mt-lg" data-i18n="success.hint">
+            Azonao sokafana ny pejy hafa, manomboka mizaha ianao.
+        </p>
+
+        <div class="lang-switcher mt-lg" style="margin-left:auto; margin-right:auto;">
+            <button type="button" class="lang-btn" data-lang="mg">MG</button>
+            <button type="button" class="lang-btn" data-lang="fr">FR</button>
+            <button type="button" class="lang-btn" data-lang="en">EN</button>
+        </div>
+    </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    "use strict";
+    var totalSeconds = {{ remaining_minutes }} * 60;
+    var el = document.getElementById("countdown");
+    if (!el || totalSeconds <= 0) return;
+
+    function pad(n) { return n < 10 ? "0" + n : "" + n; }
+
+    function render() {
+        if (totalSeconds <= 0) {
+            el.textContent = "0:00";
+            window.location.href = "/portal/expired";
+            return;
+        }
+        var m = Math.floor(totalSeconds / 60);
+        var s = totalSeconds % 60;
+        el.textContent = m + ":" + pad(s);
+        totalSeconds--;
+    }
+
+    // Sync with server every 60s to correct drift
+    function sync() {
+        fetch("/portal/status")
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.connected) {
+                    window.location.href = "/portal/expired";
+                    return;
+                }
+                totalSeconds = data.remaining_seconds;
+            })
+            .catch(function() { /* ignore — client countdown continues */ });
+    }
+
+    render();
+    setInterval(render, 1000);
+    setInterval(sync, 60000);
+})();
+</script>
+{% endblock %}

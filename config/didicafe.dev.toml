@@ -1,0 +1,31 @@
+[server]
+listen = "127.0.0.1"
+port = 8080
+interface = "lo"
+
+[database]
+path = "/Users/leonard/didicafe.dev.db"
+
+[admin]
+username = "admin"
+password_hash = "$argon2id$v=19$m=19456,t=2,p=1$UmHhUjxRtY3c7xV5M6xDaA$Vwia8SfxfxVLTom4LovEtY8PbJitJYDissghdMfTcSM"
+
+[firewall]
+nft_path = "/usr/sbin/nft"
+table_name = "didicafe"
+set_name = "auth_macs"
+
+[token]
+prefix = "DIDI"
+charset = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+length = 8
+
+[rate_limit]
+max_auth_attempts = 5
+auth_window_seconds = 60
+ban_after_attempts = 10
+ban_duration_seconds = 900
+
+[session]
+cleanup_interval_seconds = 30
+grace_period_seconds = 10

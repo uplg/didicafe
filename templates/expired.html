@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}DidiCafe{% endblock %}
+
+{% block body %}
+<main class="container" role="main">
+    <div class="card text-center">
+        <div class="brand">
+            <div class="brand-icon" aria-hidden="true">D</div>
+            <h1 data-i18n="expired.title">Tapitra ny fotoana</h1>
+        </div>
+
+        <div class="status-ring" aria-hidden="true">
+            <span class="status-ring-inner" style="color: var(--c-danger);">&#10007;</span>
+        </div>
+
+        <p class="mt-md" data-i18n="expired.message">Tapitra ny fidirana amin'ny internet.</p>
+        <p class="text-muted text-sm mt-sm" data-i18n="expired.hint">
+            Mankanesa any amin'ny mpiasa mba hividianana code vaovao.
+        </p>
+
+        <a href="/portal" class="btn btn--primary mt-lg" data-i18n="expired.new_token">
+            Hampiditra code vaovao
+        </a>
+
+        <div class="lang-switcher mt-lg" style="margin-left:auto; margin-right:auto;">
+            <button type="button" class="lang-btn" data-lang="mg">MG</button>
+            <button type="button" class="lang-btn" data-lang="fr">FR</button>
+            <button type="button" class="lang-btn" data-lang="en">EN</button>
+        </div>
+    </div>
+</main>
+{% endblock %}

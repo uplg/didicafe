@@ -1,0 +1,15 @@
+#!/sbin/openrc-run
+
+name="didicafe"
+description="DidiCafe Captive Portal Daemon"
+command="/usr/local/bin/didicafe"
+command_args="--config /etc/didicafe/didicafe.toml"
+command_background=true
+pidfile="/run/${RC_SVCNAME}.pid"
+output_log="/var/log/didicafe.log"
+error_log="/var/log/didicafe.err"
+
+depend() {
+    need net hostapd dnsmasq nftables
+    after firewall
+}

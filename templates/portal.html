@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}DidiCafe{% endblock %}
+
+{% block body %}
+<main class="container" role="main">
+    <div class="card">
+        <div class="brand">
+            <div class="brand-icon" aria-hidden="true">D</div>
+            <h1 data-i18n="portal.brand">DidiCafe</h1>
+            <p class="brand-sub" data-i18n="portal.subtitle">WiFi an'ny rehetra</p>
+        </div>
+
+        <div class="lang-switcher" style="margin: 0 auto var(--s-lg);">
+            <button type="button" class="lang-btn" data-lang="mg">MG</button>
+            <button type="button" class="lang-btn" data-lang="fr">FR</button>
+            <button type="button" class="lang-btn" data-lang="en">EN</button>
+        </div>
+
+        {% if let Some(err) = error %}
+        <div class="alert alert--error" role="alert">{{ err }}</div>
+        {% endif %}
+
+        <form method="post" action="/portal/auth" aria-label="Token authentication">
+            <div class="form-group">
+                <label for="token" data-i18n="portal.title">Ampidiro ny code-nao</label>
+                <input
+                    type="text"
+                    id="token"
+                    name="token"
+                    class="input-token"
+                    placeholder="DIDI-XXXX-XXXX"
+                    data-i18n-placeholder="portal.placeholder"
+                    autocomplete="off"
+                    autocapitalize="characters"
+                    inputmode="text"
+                    spellcheck="false"
+                    maxlength="14"
+                    required
+                    autofocus
+                    aria-required="true"
+                >
+            </div>
+            <button type="submit" class="btn btn--primary" data-i18n="portal.connect" data-i18n-aria="portal.connect_aria" aria-label="Hiditra amin'ny internet">
+                Hiditra
+            </button>
+        </form>
+    </div>
+</main>
+{% endblock %}

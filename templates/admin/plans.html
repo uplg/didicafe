@@ -1,0 +1,118 @@
+{% extends "admin/base.html" %}
+
+{% block title %}DidiCafe Admin - Plans{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h1 data-i18n="admin.plans.title">Fitantanana drafitra</h1>
+
+    <h2 class="mt-lg" data-i18n="admin.plans.create">Mamorona drafitra vaovao</h2>
+    <form method="post" action="/admin/plans" aria-label="Create plan">
+        <div class="form-group">
+            <label for="name" data-i18n="admin.plans.name">Anarana</label>
+            <input type="text" id="name" name="name" required aria-required="true" placeholder="1 Ora WiFi">
+        </div>
+        <div class="form-group">
+            <label for="duration_minutes" data-i18n="admin.plans.duration">Faharetan'ny (minitra)</label>
+            <input type="number" id="duration_minutes" name="duration_minutes" min="1" required aria-required="true" value="60">
+        </div>
+        <div class="form-group">
+            <label for="price_ariary" data-i18n="admin.plans.price">Vidiny (Ariary)</label>
+            <input type="number" id="price_ariary" name="price_ariary" min="0" required aria-required="true" value="1000">
+        </div>
+        <button type="submit" class="btn btn--primary" data-i18n="admin.plans.submit">Mamorona</button>
+    </form>
+
+    {% if let Some(msg) = message %}
+    <div class="alert alert--success mt-lg">{{ msg }}</div>
+    {% endif %}
+
+    <h2 class="mt-lg" data-i18n="admin.plans.all">Drafitra rehetra</h2>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th data-i18n="admin.plans.col_name">Anarana</th>
+                    <th data-i18n="admin.plans.col_duration">Minitra</th>
+                    <th data-i18n="admin.plans.col_price">Ariary</th>
+                    <th data-i18n="admin.plans.col_status">Sata</th>
+                    <th><span class="sr-only">Actions</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in plans %}
+                <tr id="plan-{{ p.id }}">
+                    <td>{{ p.name }}</td>
+                    <td>{{ p.duration_minutes }}</td>
+                    <td>{{ p.price_ariary }} Ar</td>
+                    <td>
+                        {% if p.active %}
+                        <span class="badge badge--unused" data-i18n="admin.plans.active">Mavitrika</span>
+                        {% else %}
+                        <span class="badge badge--expired" data-i18n="admin.plans.inactive">Tsy mavitrika</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if p.active %}
+                        <button
+                            type="button"
+                            class="btn btn--danger btn--sm"
+                            data-i18n="admin.plans.deactivate"
+                            onclick="togglePlan({{ p.id }}, false, this)"
+                        >Hajanona</button>
+                        {% else %}
+                        <button
+                            type="button"
+                            class="btn btn--primary btn--sm"
+                            data-i18n="admin.plans.activate"
+                            onclick="togglePlan({{ p.id }}, true, this)"
+                        >Hamelona</button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <a href="/admin" class="btn btn--outline btn--full mt-lg" data-i18n="admin.plans.back">Hiverina</a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+"use strict";
+function togglePlan(id, activate, btn) {
+    btn.disabled = true;
+    btn.textContent = "...";
+
+    // Fetch the current plan, flip active, PUT back
+    fetch("/api/plans", { credentials: "same-origin" })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            var plan = res.data.plans.find(function(p) { return p.id === id; });
+            if (!plan) throw new Error("Plan not found");
+            return fetch("/api/plans/" + id, {
+                method: "PUT",
+                credentials: "same-origin",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    name: plan.name,
+                    duration_minutes: plan.duration_minutes,
+                    price_ariary: plan.price_ariary,
+                    active: activate
+                })
+            });
+        })
+        .then(function(r) {
+            if (r.ok) window.location.reload();
+            else throw new Error("Update failed");
+        })
+        .catch(function() {
+            btn.disabled = false;
+            btn.textContent = "Error";
+            setTimeout(function() { window.location.reload(); }, 2000);
+        });
+}
+</script>
+{% endblock %}

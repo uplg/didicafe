@@ -1,0 +1,34 @@
+[server]
+listen = "10.10.0.1"
+port = 8080
+interface = "wlan0"
+
+[database]
+path = "/var/lib/didicafe/didicafe.db"
+
+[admin]
+username = "admin"
+# Argon2id (OWASP recommended) — m=19456 (19 MiB), t=2, p=1
+# Generate with: cargo test test_argon2id_hash_and_verify -- --nocapture
+password_hash = "$argon2id$v=19$m=19456,t=2,p=1$UmHhUjxRtY3c7xV5M6xDaA$Vwia8SfxfxVLTom4LovEtY8PbJitJYDissghdMfTcSM"
+
+[firewall]
+nft_path = "/usr/sbin/nft"
+table_name = "didicafe"
+set_name = "auth_macs"
+
+[token]
+prefix = "DIDI"
+# No 0/O/1/I to avoid human confusion
+charset = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+length = 8
+
+[rate_limit]
+max_auth_attempts = 5
+auth_window_seconds = 60
+ban_after_attempts = 10
+ban_duration_seconds = 900
+
+[session]
+cleanup_interval_seconds = 30
+grace_period_seconds = 10

@@ -1,0 +1,75 @@
+{% extends "admin/base.html" %}
+
+{% block title %}DidiCafe Admin - Codes{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h1 data-i18n="admin.tokens.title">Fitantanana code</h1>
+
+    <h2 class="mt-lg" data-i18n="admin.tokens.generate">Mamorona code vaovao</h2>
+    <form method="post" action="/admin/tokens" aria-label="Generate tokens">
+        <div class="form-group">
+            <label for="plan_id" data-i18n="admin.tokens.select_plan">Misafidiana drafitra...</label>
+            <select id="plan_id" name="plan_id" required aria-required="true">
+                <option value="" data-i18n="admin.tokens.select_plan">Misafidiana drafitra...</option>
+                {% for p in plans %}
+                <option value="{{ p.id }}">{{ p.name }} ({{ p.duration_minutes }} min - {{ p.price_ariary }} Ar)</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="count" data-i18n="admin.tokens.quantity">Isa</label>
+            <input
+                type="number"
+                id="count"
+                name="count"
+                min="1"
+                max="100"
+                value="10"
+                required
+                aria-required="true"
+            >
+        </div>
+        <button type="submit" class="btn btn--primary" data-i18n="admin.tokens.submit">Mamorona</button>
+    </form>
+
+    {% if !generated.is_empty() %}
+    <div class="alert alert--success mt-lg" data-i18n="admin.tokens.generated">
+        Code naorina
+    </div>
+    <div class="token-list">
+        {% for code in generated %}
+        {{ code }}<br>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <h2 class="mt-lg" data-i18n="admin.tokens.all">Code rehetra</h2>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th data-i18n="admin.tokens.col_code">Code</th>
+                    <th data-i18n="admin.tokens.col_status">Sata</th>
+                    <th data-i18n="admin.tokens.col_created">Naorina</th>
+                    <th data-i18n="admin.tokens.col_expires">Tapitra</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in tokens %}
+                <tr>
+                    <td><code>{{ t.code }}</code></td>
+                    <td>
+                        <span class="badge badge--{{ t.status }}">{{ t.status }}</span>
+                    </td>
+                    <td class="text-xs">{{ t.created_at }}</td>
+                    <td class="text-xs">{{ t.expires_at.as_deref().unwrap_or("-") }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <a href="/admin" class="btn btn--outline btn--full mt-lg" data-i18n="admin.tokens.back">Hiverina</a>
+</div>
+{% endblock %}

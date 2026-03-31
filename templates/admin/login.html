@@ -1,0 +1,54 @@
+{% extends "../base.html" %}
+
+{% block title %}DidiCafe Admin{% endblock %}
+
+{% block body %}
+<main class="container" role="main">
+    <div class="card">
+        <div class="brand">
+            <div class="brand-icon" aria-hidden="true">D</div>
+            <h1>DidiCafe</h1>
+            <p class="brand-sub" data-i18n="admin.login.title">Fidirana ho an'ny mpiasa</p>
+        </div>
+
+        <div class="lang-switcher" style="margin: 0 auto var(--s-lg);">
+            <button type="button" class="lang-btn" data-lang="mg">MG</button>
+            <button type="button" class="lang-btn" data-lang="fr">FR</button>
+            <button type="button" class="lang-btn" data-lang="en">EN</button>
+        </div>
+
+        {% if let Some(err) = error %}
+        <div class="alert alert--error" role="alert" data-i18n="admin.login.error">{{ err }}</div>
+        {% endif %}
+
+        <form method="post" action="/admin/login" aria-label="Admin login">
+            <div class="form-group">
+                <label for="username" data-i18n="admin.login.username">Anarana</label>
+                <input
+                    type="text"
+                    id="username"
+                    name="username"
+                    autocomplete="username"
+                    required
+                    autofocus
+                    aria-required="true"
+                >
+            </div>
+            <div class="form-group">
+                <label for="password" data-i18n="admin.login.password">Teny miafina</label>
+                <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    autocomplete="current-password"
+                    required
+                    aria-required="true"
+                >
+            </div>
+            <button type="submit" class="btn btn--primary" data-i18n="admin.login.submit">
+                Hiditra
+            </button>
+        </form>
+    </div>
+</main>
+{% endblock %}

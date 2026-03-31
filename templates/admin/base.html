@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="mg">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title>{% block title %}DidiCafe Admin{% endblock %}</title>
+    <link rel="stylesheet" href="/static/style.css">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <nav class="nav" role="navigation" aria-label="Admin navigation">
+        <div class="nav-brand">
+            <div class="nav-brand-icon" aria-hidden="true">D</div>
+            <span>DidiCafe</span>
+        </div>
+        <ul class="nav-links">
+            <li><a href="/admin" data-i18n="admin.nav.dashboard">Tableau de bord</a></li>
+            <li><a href="/admin/tokens" data-i18n="admin.nav.tokens">Code</a></li>
+            <li><a href="/admin/plans" data-i18n="admin.nav.plans">Drafitra</a></li>
+            <li><a href="/admin/sessions" data-i18n="admin.nav.sessions">Lozisialy</a></li>
+            <li>
+                <form method="post" action="/admin/logout" style="display:inline">
+                    <button type="submit" class="btn btn--outline btn--sm" data-i18n="admin.nav.logout">Hivoaka</button>
+                </form>
+            </li>
+            <li>
+                <div class="lang-switcher">
+                    <button type="button" class="lang-btn" data-lang="mg">MG</button>
+                    <button type="button" class="lang-btn" data-lang="fr">FR</button>
+                    <button type="button" class="lang-btn" data-lang="en">EN</button>
+                </div>
+            </li>
+        </ul>
+    </nav>
+
+    <div class="container container--wide">
+        {% block content %}{% endblock %}
+    </div>
+
+    <script src="/static/i18n.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

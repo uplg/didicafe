@@ -1,0 +1,92 @@
+{% extends "admin/base.html" %}
+
+{% block title %}DidiCafe Admin{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h1 data-i18n="admin.dash.title">Tableau de bord</h1>
+
+    <div class="stats mt-md">
+        <div class="stat">
+            <div class="stat-value">{{ stats.active_sessions }}</div>
+            <div class="stat-label" data-i18n="admin.dash.active">Lozisialy mandeha</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value">{{ stats.tokens_sold }}</div>
+            <div class="stat-label" data-i18n="admin.dash.sold_today">Code namidy androany</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value">{{ stats.revenue_ariary }} Ar</div>
+            <div class="stat-label" data-i18n="admin.dash.revenue">Vola androany</div>
+        </div>
+    </div>
+
+    <h2 data-i18n="admin.dash.sessions">Lozisialy mandeha</h2>
+
+    {% if active_sessions.is_empty() %}
+    <p class="text-muted text-sm mt-sm" data-i18n="admin.dash.no_sessions">Tsy misy lozisialy mandeha.</p>
+    {% else %}
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th data-i18n="admin.dash.col_mac">MAC</th>
+                    <th data-i18n="admin.dash.col_ip">IP</th>
+                    <th data-i18n="admin.dash.col_remaining">Sisa</th>
+                    <th><span class="sr-only">Actions</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in active_sessions %}
+                <tr id="session-{{ s.id }}">
+                    <td><code>{{ s.mac_address }}</code></td>
+                    <td>{{ s.ip_address }}</td>
+                    <td>{{ s.remaining_seconds() / 60 }} min</td>
+                    <td>
+                        <button
+                            type="button"
+                            class="btn btn--danger btn--sm"
+                            data-i18n="admin.dash.disconnect"
+                            onclick="disconnectSession({{ s.id }}, this)"
+                            aria-label="Disconnect session {{ s.id }}"
+                        >Hajanona</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <a href="/admin/tokens" class="btn btn--outline btn--full mt-lg" data-i18n="admin.dash.manage_tokens">
+        Hitantana code
+    </a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+"use strict";
+function disconnectSession(id, btn) {
+    btn.disabled = true;
+    btn.textContent = "...";
+    fetch("/api/sessions/" + id, { method: "DELETE", credentials: "same-origin" })
+        .then(function(res) {
+            if (res.ok) {
+                var row = document.getElementById("session-" + id);
+                if (row) row.remove();
+            } else {
+                btn.disabled = false;
+                btn.textContent = "Error";
+                setTimeout(function() {
+                    btn.textContent = t("admin.dash.disconnect");
+                }, 2000);
+            }
+        })
+        .catch(function() {
+            btn.disabled = false;
+            btn.textContent = "Error";
+        });
+}
+</script>
+{% endblock %}

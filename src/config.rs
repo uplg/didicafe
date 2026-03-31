@@ -1,0 +1,247 @@
+use anyhow::{Context, Result};
+use serde::Deserialize;
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Config {
+    pub server: ServerConfig,
+    pub database: DatabaseConfig,
+    pub admin: AdminConfig,
+    pub firewall: FirewallConfig,
+    pub token: TokenConfig,
+    pub rate_limit: RateLimitConfig,
+    pub session: SessionConfig,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ServerConfig {
+    pub listen: String,
+    pub port: u16,
+    pub interface: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct DatabaseConfig {
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct AdminConfig {
+    pub username: String,
+    pub password_hash: String,
+    /// Admin session timeout in seconds. Defaults to 3600 (1 hour).
+    #[serde(default = "default_admin_session_timeout")]
+    pub session_timeout_seconds: u64,
+}
+
+fn default_admin_session_timeout() -> u64 {
+    3600
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct FirewallConfig {
+    pub nft_path: String,
+    pub table_name: String,
+    pub set_name: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct TokenConfig {
+    pub prefix: String,
+    pub charset: String,
+    pub length: usize,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RateLimitConfig {
+    pub max_auth_attempts: u32,
+    pub auth_window_seconds: u64,
+    pub ban_after_attempts: u32,
+    pub ban_duration_seconds: u64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SessionConfig {
+    pub cleanup_interval_seconds: u64,
+    pub grace_period_seconds: i64,
+}
+
+impl Config {
+    pub fn load(path: &str) -> Result<Self> {
+        let content = std::fs::read_to_string(path)
+            .with_context(|| format!("failed to read config file: {path}"))?;
+        let config: Config = toml::from_str(&content)
+            .with_context(|| format!("failed to parse config file: {path}"))?;
+        config.validate()?;
+        Ok(config)
+    }
+
+    /// Validate all config values after parsing.
+    ///
+    /// Fails fast with a clear message for each invalid value.
+    fn validate(&self) -> Result<()> {
+        // Server
+        anyhow::ensure!(
+            (1..=65535).contains(&self.server.port),
+            "server.port must be 1–65535, got {}",
+            self.server.port
+        );
+        anyhow::ensure!(
+            !self.server.listen.is_empty(),
+            "server.listen must not be empty"
+        );
+        anyhow::ensure!(
+            !self.server.interface.is_empty(),
+            "server.interface must not be empty"
+        );
+
+        // Database
+        anyhow::ensure!(
+            !self.database.path.is_empty(),
+            "database.path must not be empty"
+        );
+
+        // Admin
+        anyhow::ensure!(
+            !self.admin.username.is_empty(),
+            "admin.username must not be empty"
+        );
+        anyhow::ensure!(
+            self.admin.password_hash.starts_with("$argon2id$"),
+            "admin.password_hash must be an Argon2id PHC string (starts with $argon2id$)"
+        );
+        anyhow::ensure!(
+            self.admin.session_timeout_seconds > 0,
+            "admin.session_timeout_seconds must be > 0"
+        );
+
+        // Token
+        anyhow::ensure!(
+            !self.token.charset.is_empty(),
+            "token.charset must not be empty"
+        );
+        anyhow::ensure!(
+            self.token.length >= 2 && self.token.length.is_multiple_of(2),
+            "token.length must be >= 2 and even, got {}",
+            self.token.length
+        );
+        anyhow::ensure!(
+            !self.token.prefix.is_empty(),
+            "token.prefix must not be empty"
+        );
+
+        // Rate limit
+        anyhow::ensure!(
+            self.rate_limit.max_auth_attempts > 0,
+            "rate_limit.max_auth_attempts must be > 0"
+        );
+        anyhow::ensure!(
+            self.rate_limit.auth_window_seconds > 0,
+            "rate_limit.auth_window_seconds must be > 0"
+        );
+        anyhow::ensure!(
+            self.rate_limit.ban_after_attempts >= self.rate_limit.max_auth_attempts,
+            "rate_limit.ban_after_attempts must be >= max_auth_attempts"
+        );
+        anyhow::ensure!(
+            self.rate_limit.ban_duration_seconds > 0,
+            "rate_limit.ban_duration_seconds must be > 0"
+        );
+
+        // Session
+        anyhow::ensure!(
+            self.session.cleanup_interval_seconds > 0,
+            "session.cleanup_interval_seconds must be > 0"
+        );
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn valid_config() -> Config {
+        Config {
+            server: ServerConfig {
+                listen: "0.0.0.0".to_string(),
+                port: 8080,
+                interface: "wlan0".to_string(),
+            },
+            database: DatabaseConfig {
+                path: "/tmp/test.db".to_string(),
+            },
+            admin: AdminConfig {
+                username: "admin".to_string(),
+                password_hash: "$argon2id$v=19$m=19456,t=2,p=1$salt$hash".to_string(),
+                session_timeout_seconds: 3600,
+            },
+            firewall: FirewallConfig {
+                nft_path: "/usr/sbin/nft".to_string(),
+                table_name: "didicafe".to_string(),
+                set_name: "auth_macs".to_string(),
+            },
+            token: TokenConfig {
+                prefix: "DIDI".to_string(),
+                charset: "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".to_string(),
+                length: 8,
+            },
+            rate_limit: RateLimitConfig {
+                max_auth_attempts: 5,
+                auth_window_seconds: 60,
+                ban_after_attempts: 10,
+                ban_duration_seconds: 900,
+            },
+            session: SessionConfig {
+                cleanup_interval_seconds: 30,
+                grace_period_seconds: 10,
+            },
+        }
+    }
+
+    #[test]
+    fn test_valid_config_passes() {
+        assert!(valid_config().validate().is_ok());
+    }
+
+    #[test]
+    fn test_port_zero_rejected() {
+        let mut cfg = valid_config();
+        cfg.server.port = 0;
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(err.contains("port"), "expected port error, got: {err}");
+    }
+
+    #[test]
+    fn test_empty_charset_rejected() {
+        let mut cfg = valid_config();
+        cfg.token.charset = String::new();
+        assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn test_odd_token_length_rejected() {
+        let mut cfg = valid_config();
+        cfg.token.length = 7;
+        assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn test_bad_password_hash_rejected() {
+        let mut cfg = valid_config();
+        cfg.token.length = 8;
+        cfg.admin.password_hash = "bcrypt$plaintext".to_string();
+        let err = cfg.validate().unwrap_err().to_string();
+        assert!(
+            err.contains("argon2id"),
+            "expected argon2id error, got: {err}"
+        );
+    }
+
+    #[test]
+    fn test_ban_below_max_rejected() {
+        let mut cfg = valid_config();
+        cfg.rate_limit.ban_after_attempts = 3; // below max_auth_attempts=5
+        assert!(cfg.validate().is_err());
+    }
+}
