@@ -606,3 +606,55 @@ tr:last-child td {
     padding: 0 var(--s-md);
   }
 }
+
+/* --- Modal --- */
+dialog.modal {
+  border: none;
+  border-radius: var(--r-lg);
+  padding: 0;
+  max-width: 400px;
+  width: 90%;
+  background: var(--c-bg);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  margin: auto;
+  position: fixed;
+  inset: 0;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+dialog.modal::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+dialog.modal .modal-content {
+  padding: var(--s-lg);
+}
+
+dialog.modal .modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--s-md);
+}
+
+dialog.modal .modal-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+dialog.modal .form-group {
+  margin-bottom: var(--s-md);
+}
+
+dialog.modal .form-group label {
+  display: block;
+  margin-bottom: var(--s-xs);
+  font-weight: 500;
+}
+
+dialog.modal .form-group input {
+  width: 100%;
+  box-sizing: border-box;
+}

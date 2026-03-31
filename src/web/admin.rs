@@ -64,24 +64,12 @@ struct DashboardTemplate {
 }
 
 #[derive(Template)]
-#[template(path = "admin/tokens.html")]
-struct TokensTemplate {
+#[template(path = "admin/manage.html")]
+struct ManageTemplate {
     tokens: Vec<crate::db::Token>,
     plans: Vec<crate::db::Plan>,
-    generated: Vec<String>,
-}
-
-#[derive(Template)]
-#[template(path = "admin/plans.html")]
-struct PlansTemplate {
-    plans: Vec<crate::db::Plan>,
-    message: Option<String>,
-}
-
-#[derive(Template)]
-#[template(path = "admin/sessions.html")]
-struct SessionsTemplate {
     sessions: Vec<crate::db::Session>,
+    message: Option<String>,
 }
 
 // -- Forms --
@@ -93,16 +81,12 @@ pub struct LoginForm {
 }
 
 #[derive(Deserialize)]
-pub struct GenerateTokensForm {
-    plan_id: i64,
-    count: usize,
-}
-
-#[derive(Deserialize)]
-pub struct CreatePlanForm {
-    name: String,
-    duration_minutes: i64,
-    price_ariary: i64,
+pub struct ManageForm {
+    plan_id: Option<i64>,
+    count: Option<usize>,
+    name: Option<String>,
+    duration: Option<i64>,
+    price: Option<i64>,
 }
 
 // -- Routes --
@@ -110,11 +94,20 @@ pub struct CreatePlanForm {
 pub fn routes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/admin", get(dashboard))
+        .route("/admin/", get(redirect_to_login))
         .route("/admin/login", get(login_page).post(login_submit))
         .route("/admin/logout", post(logout))
-        .route("/admin/tokens", get(tokens_page).post(generate_tokens))
-        .route("/admin/plans", get(plans_page).post(create_plan))
-        .route("/admin/sessions", get(sessions_page))
+        .route("/admin/manage", get(manage_page).post(manage_submit))
+}
+
+/// GET /admin — redirect to login if not authenticated
+async fn redirect_to_login(State(state): State<Arc<AppState>>, headers: axum::http::HeaderMap) -> axum::response::Response {
+    if let Some(session_id) = super::extractors::extract_cookie(&headers, ADMIN_COOKIE_NAME)
+        && state.admin_sessions.validate(&session_id)
+    {
+        return Redirect::to("/admin").into_response();
+    }
+    Redirect::to("/admin/login").into_response()
 }
 
 /// GET /admin/login — login page (no auth required)
@@ -177,8 +170,8 @@ async fn dashboard(
     })
 }
 
-/// GET /admin/tokens — token management (requires auth)
-async fn tokens_page(
+/// GET /admin/manage — consolidated management page (requires auth)
+async fn manage_page(
     State(state): State<Arc<AppState>>,
     _admin: AdminSession,
 ) -> Result<impl IntoResponse, AppError> {
@@ -186,81 +179,53 @@ async fn tokens_page(
         .map_err(AppError::Internal)?;
     let plans = state.db.list_plans().await
         .map_err(AppError::Internal)?;
-
-    render(&TokensTemplate {
-        tokens,
-        plans,
-        generated: vec![],
-    })
-}
-
-/// POST /admin/tokens — generate new tokens (requires auth)
-async fn generate_tokens(
-    State(state): State<Arc<AppState>>,
-    _admin: AdminSession,
-    Form(form): Form<GenerateTokensForm>,
-) -> Result<impl IntoResponse, AppError> {
-    let generated = crate::services::token::generate_tokens(
-        &state.db,
-        &state.config.token,
-        form.plan_id,
-        form.count,
-    ).await.map_err(AppError::Internal)?;
-
-    let tokens = state.db.list_tokens(None).await
-        .map_err(AppError::Internal)?;
-    let plans = state.db.list_plans().await
-        .map_err(AppError::Internal)?;
-
-    render(&TokensTemplate {
-        tokens,
-        plans,
-        generated,
-    })
-}
-
-/// GET /admin/plans — plan management (requires auth)
-async fn plans_page(
-    State(state): State<Arc<AppState>>,
-    _admin: AdminSession,
-) -> Result<impl IntoResponse, AppError> {
-    let plans = state.db.list_plans().await
-        .map_err(AppError::Internal)?;
-    render(&PlansTemplate { plans, message: None })
-}
-
-/// POST /admin/plans — create a new plan (requires auth)
-async fn create_plan(
-    State(state): State<Arc<AppState>>,
-    _admin: AdminSession,
-    Form(form): Form<CreatePlanForm>,
-) -> Result<impl IntoResponse, AppError> {
-    if form.name.is_empty() {
-        return Err(AppError::BadRequest("name must not be empty".to_string()));
-    }
-    if form.duration_minutes <= 0 {
-        return Err(AppError::BadRequest("duration_minutes must be > 0".to_string()));
-    }
-
-    state.db.create_plan(&form.name, form.duration_minutes, form.price_ariary).await
-        .map_err(AppError::Internal)?;
-
-    let plans = state.db.list_plans().await
-        .map_err(AppError::Internal)?;
-    render(&PlansTemplate {
-        plans,
-        message: Some(format!("Plan '{}' created.", form.name)),
-    })
-}
-
-/// GET /admin/sessions — session management (requires auth)
-async fn sessions_page(
-    State(state): State<Arc<AppState>>,
-    _admin: AdminSession,
-) -> Result<impl IntoResponse, AppError> {
     let sessions = state.db.get_active_sessions().await
         .map_err(AppError::Internal)?;
-    render(&SessionsTemplate { sessions })
+    render(&ManageTemplate {
+        tokens,
+        plans,
+        sessions,
+        message: None,
+    })
+}
+
+/// POST /admin/manage — handle token generation or plan creation (requires auth)
+async fn manage_submit(
+    State(state): State<Arc<AppState>>,
+    _admin: AdminSession,
+    Form(form): Form<ManageForm>,
+) -> Result<impl IntoResponse, AppError> {
+    let message = if let Some(plan_id) = form.plan_id {
+        if form.count.unwrap_or(0) > 0 {
+            let codes = crate::services::token::generate_tokens(
+                &state.db,
+                &state.config.token,
+                plan_id,
+                form.count.unwrap_or(1),
+            ).await.map_err(AppError::Internal)?;
+            Some(format!("{} token(s) generated", codes.len()))
+        } else {
+            let name = form.name.unwrap_or_default();
+            state.db.create_plan(&name, form.duration.unwrap_or(60), form.price.unwrap_or(1000)).await
+                .map_err(AppError::Internal)?;
+            Some(format!("Plan '{}' created.", name))
+        }
+    } else {
+        None
+    };
+
+    let tokens = state.db.list_tokens(None).await
+        .map_err(AppError::Internal)?;
+    let plans = state.db.list_plans().await
+        .map_err(AppError::Internal)?;
+    let sessions = state.db.get_active_sessions().await
+        .map_err(AppError::Internal)?;
+    render(&ManageTemplate {
+        tokens,
+        plans,
+        sessions,
+        message,
+    })
 }
 
 #[cfg(test)]

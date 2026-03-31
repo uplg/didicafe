@@ -1,0 +1,269 @@
+{% extends "admin/base.html" %}
+
+{% block title %}DidiCafe Admin - Gestion{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h1 data-i18n="admin.manage.title">Gestion</h1>
+
+    {% if let Some(msg) = message %}
+    <div class="alert alert--success mt-md">{{ msg }}</div>
+    {% endif %}
+
+    <!-- Quick Stats -->
+    <div class="stats mt-md">
+        <div class="stat">
+            <div class="stat-value">{{ sessions.len() }}</div>
+            <div class="stat-label" data-i18n="admin.dash.sessions">Sessions actives</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value">{{ tokens.len() }}</div>
+            <div class="stat-label" data-i18n="admin.tokens.all">Codes</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value">{{ plans.len() }}</div>
+            <div class="stat-label" data-i18n="admin.plans.all">Forfaits</div>
+        </div>
+    </div>
+
+    <!-- Generate Token -->
+    <details class="mt-lg">
+        <summary class="btn btn--outline" data-i18n="admin.tokens.generate">Générer des codes</summary>
+        <form method="post" action="/admin/manage" class="mt-md">
+            <div class="form-group" style="flex:2">
+                <label for="plan_id" data-i18n="admin.tokens.select_plan">Forfait</label>
+                <select id="plan_id" name="plan_id" required>
+                    <option value="" data-i18n="admin.tokens.select_plan">Choisir...</option>
+                    {% for p in plans %}
+                    <option value="{{ p.id }}">{{ p.name }} ({{ p.duration_minutes }}min / {{ p.price_ariary }}Ar)</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group" style="flex:1">
+                <label for="count" data-i18n="admin.tokens.quantity">Quantité</label>
+                <input type="number" id="count" name="count" min="1" max="100" value="1">
+            </div>
+            <button type="submit" class="btn btn--primary" data-i18n="admin.tokens.submit">Générer</button>
+        </form>
+    </details>
+
+    <!-- Create Plan -->
+    <details class="mt-md">
+        <summary class="btn btn--outline" data-i18n="admin.plans.create">Créer un forfait</summary>
+        <form method="post" action="/admin/manage" class="mt-md">
+            <div class="form-group">
+                <label for="name" data-i18n="admin.plans.name">Nom</label>
+                <input type="text" id="name" name="name" required placeholder="1h WiFi">
+            </div>
+            <div class="form-group">
+                <label for="duration" data-i18n="admin.plans.duration">Durée (min)</label>
+                <input type="number" id="duration" name="duration" min="1" value="60">
+            </div>
+            <div class="form-group">
+                <label for="price" data-i18n="admin.plans.price">Prix (Ar)</label>
+                <input type="number" id="price" name="price" min="0" value="1000">
+            </div>
+            <button type="submit" class="btn btn--primary" data-i18n="admin.plans.submit">Créer</button>
+        </form>
+    </details>
+
+    <!-- Active Sessions -->
+    <h2 class="mt-lg" data-i18n="admin.dash.sessions">Sessions actives ({{ sessions.len() }})</h2>
+    {% if sessions.is_empty() %}
+    <p class="text-muted text-sm mt-sm" data-i18n="admin.sessions.none">Aucune session.</p>
+    {% else %}
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>MAC</th>
+                    <th data-i18n="admin.sessions.col_remaining">Restant</th>
+                    <th><span class="sr-only">Actions</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in sessions %}
+                <tr id="session-{{ s.id }}">
+                    <td><code class="text-xs">{{ s.mac_address }}</code></td>
+                    <td>{{ s.remaining_seconds() / 60 }} min</td>
+                    <td>
+                        <button type="button" class="btn btn--danger btn--sm" onclick="disconnectSession({{ s.id }}, this)">×</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- Tokens List -->
+    <h2 class="mt-lg" data-i18n="admin.tokens.all">Codes ({{ tokens.len() }})</h2>
+    {% if tokens.is_empty() %}
+    <p class="text-muted text-sm mt-sm">Aucun code.</p>
+    {% else %}
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th data-i18n="admin.tokens.col_code">Code</th>
+                    <th data-i18n="admin.tokens.col_status">Statut</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in tokens %}
+                <tr>
+                    <td><code>{{ t.code }}</code></td>
+                    <td>
+                        {% if t.status == "unused" %}
+                        <span class="badge badge--unused" data-i18n="status.unused">non utilisé</span>
+                        {% else if t.status == "active" %}
+                        <span class="badge badge--active" data-i18n="status.active">actif</span>
+                        {% else if t.status == "expired" %}
+                        <span class="badge badge--expired" data-i18n="status.expired">expiré</span>
+                        {% else %}
+                        <span class="badge badge--expired" data-i18n="status.revoked">révoqué</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- Plans List -->
+    <h2 class="mt-lg" data-i18n="admin.plans.all">Forfaits ({{ plans.len() }})</h2>
+    {% if plans.is_empty() %}
+    <p class="text-muted text-sm mt-sm">Aucun forfait.</p>
+    {% else %}
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th data-i18n="admin.plans.col_name">Nom</th>
+                    <th data-i18n="admin.plans.col_duration">Min</th>
+                    <th data-i18n="admin.plans.col_price">Prix</th>
+                    <th data-i18n="admin.plans.col_status">Statut</th>
+                    <th><span class="sr-only">Actions</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in plans %}
+                <tr id="plan-{{ p.id }}">
+                    <td>{{ p.name }}</td>
+                    <td>{{ p.duration_minutes }}</td>
+                    <td>{{ p.price_ariary }} Ar</td>
+                    <td>
+                        {% if p.active %}
+                        <span class="badge badge--active" data-i18n="admin.plans.active">Actif</span>
+                        {% else %}
+                        <span class="badge badge--expired" data-i18n="admin.plans.inactive">Inactif</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button type="button" class="btn btn--outline btn--sm" onclick="editPlan({{ p.id }}, '{{ p.name }}', {{ p.duration_minutes }}, {{ p.price_ariary }})">✎</button>
+                        {% if p.active %}
+                        <button type="button" class="btn btn--danger btn--sm" onclick="togglePlan({{ p.id }}, false, this)">×</button>
+                        {% else %}
+                        <button type="button" class="btn btn--primary btn--sm" onclick="togglePlan({{ p.id }}, true, this)">✓</button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+"use strict";
+function disconnectSession(id, btn) {
+    btn.disabled = true;
+    fetch("/api/sessions/" + id, { method: "DELETE", credentials: "same-origin" })
+        .then(function(res) {
+            if (res.ok) {
+                var row = document.getElementById("session-" + id);
+                if (row) row.remove();
+            }
+        });
+}
+
+function togglePlan(id, activate, btn) {
+    btn.disabled = true;
+    fetch("/api/plans/" + id, {
+        method: "PUT",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "temp", duration_minutes: 60, price_ariary: 1000, active: activate })
+    }).then(function(r) { if (r.ok) window.location.reload(); });
+}
+
+function editPlan(id, name, duration, price) {
+    document.getElementById("edit-id").value = id;
+    document.getElementById("edit-name").value = name;
+    document.getElementById("edit-duration").value = duration;
+    document.getElementById("edit-price").value = price;
+    document.getElementById("edit-modal").open = true;
+}
+
+function closeEditModal() {
+    document.getElementById("edit-modal").open = false;
+}
+
+function saveEditPlan() {
+    var id = document.getElementById("edit-id").value;
+    var name = document.getElementById("edit-name").value;
+    var duration = parseInt(document.getElementById("edit-duration").value) || 60;
+    var price = parseInt(document.getElementById("edit-price").value) || 0;
+    
+    fetch("/api/plans/" + id, {
+        method: "PUT",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+            name: name, 
+            duration_minutes: duration, 
+            price_ariary: price,
+            active: true
+        })
+    }).then(function(r) { 
+        if (r.ok) {
+            closeEditModal();
+            window.location.reload();
+        }
+    });
+}
+</script>
+
+<!-- Edit Plan Modal -->
+<dialog id="edit-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 data-i18n="admin.plans.edit">Modifier le forfait</h2>
+            <button type="button" class="btn btn--outline btn--sm" onclick="closeEditModal()">×</button>
+        </div>
+        <form onsubmit="event.preventDefault(); saveEditPlan();">
+            <input type="hidden" id="edit-id">
+            <div class="form-group">
+                <label for="edit-name" data-i18n="admin.plans.name">Nom</label>
+                <input type="text" id="edit-name" required>
+            </div>
+            <div class="form-group">
+                <label for="edit-duration" data-i18n="admin.plans.duration">Durée (min)</label>
+                <input type="number" id="edit-duration" min="1" required>
+            </div>
+            <div class="form-group">
+                <label for="edit-price" data-i18n="admin.plans.price">Prix (Ar)</label>
+                <input type="number" id="edit-price" min="0" required>
+            </div>
+            <div class="mt-md" style="display:flex;gap:var(--s-sm)">
+                <button type="button" class="btn btn--outline" onclick="closeEditModal()" data-i18n="admin.plans.cancel">Annuler</button>
+                <button type="submit" class="btn btn--primary" data-i18n="admin.plans.save">Enregistrer</button>
+            </div>
+        </form>
+    </div>
+</dialog>
+{% endblock %}

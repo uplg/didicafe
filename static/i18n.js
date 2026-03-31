@@ -31,17 +31,17 @@ const TRANSLATIONS = {
     // -- Success --
     "success.title": "Tafiditra!",
     "success.remaining": "Fotoana sisa",
-    "success.hint": "Azonao sokafana ny pejy hafa, manomboka mizaha ianao.",
+    "success.hint": "Azonao idiana ny pejy, manomboka mijery pejy hafa ianao.",
     "success.minutes": "min",
 
     // -- Expired --
     "expired.title": "Tapitra ny fotoana",
     "expired.message": "Tapitra ny fidirana amin'ny internet.",
-    "expired.hint": "Mankanesa any amin'ny mpiasa mba hividianana code vaovao.",
+    "expired.hint": "Mankanesa any amin'ny mpapiasa raha hividy code vaovao.",
     "expired.new_token": "Hampiditra code vaovao",
 
     // -- Admin Nav --
-    "admin.nav.dashboard": "Tableau de bord",
+    "admin.nav.dashboard": "Dashboard",
     "admin.nav.tokens": "Code",
     "admin.nav.plans": "Drafitra",
     "admin.nav.sessions": "Lozisialy",
@@ -55,17 +55,17 @@ const TRANSLATIONS = {
     "admin.login.error": "Anarana na teny miafina diso.",
 
     // -- Admin Dashboard --
-    "admin.dash.title": "Tableau de bord",
-    "admin.dash.active": "Lozisialy mandeha",
+    "admin.dash.title": "Dashboard",
+    "admin.dash.active": "Mandeha",
     "admin.dash.sold_today": "Code namidy androany",
     "admin.dash.revenue": "Vola androany",
-    "admin.dash.sessions": "Lozisialy mandeha",
+    "admin.dash.sessions": "Mandeha",
     "admin.dash.no_sessions": "Tsy misy lozisialy mandeha.",
     "admin.dash.col_mac": "MAC",
     "admin.dash.col_ip": "IP",
     "admin.dash.col_remaining": "Sisa",
     "admin.dash.disconnect": "Hajanona",
-    "admin.dash.manage_tokens": "Hitantana code",
+    "admin.dash.manage_tokens": "Fitantanana ny code",
 
     // -- Admin Tokens --
     "admin.tokens.title": "Fitantanana code",
@@ -110,6 +110,12 @@ const TRANSLATIONS = {
     "admin.sessions.col_remaining": "Sisa",
     "admin.sessions.disconnect": "Hajanona",
     "admin.sessions.back": "Hiverina",
+
+    // -- Admin Manage --
+    "admin.manage.title": "Fitantanana",
+    "admin.plans.edit": "Fahasahana drafitra",
+    "admin.plans.cancel": "Aoka",
+    "admin.plans.save": "Tehirizo",
 
     // -- Status --
     "status.active": "mandeha",
@@ -214,6 +220,12 @@ const TRANSLATIONS = {
     "admin.sessions.disconnect": "Déconnecter",
     "admin.sessions.back": "Retour",
 
+    // -- Admin Manage --
+    "admin.manage.title": "Gestion",
+    "admin.plans.edit": "Modifier le forfait",
+    "admin.plans.cancel": "Annuler",
+    "admin.plans.save": "Enregistrer",
+
     // -- Status --
     "status.active": "actif",
     "status.unused": "non utilisé",
@@ -316,6 +328,12 @@ const TRANSLATIONS = {
     "admin.sessions.col_remaining": "Remaining",
     "admin.sessions.disconnect": "Disconnect",
     "admin.sessions.back": "Back",
+
+    // -- Admin Manage --
+    "admin.manage.title": "Management",
+    "admin.plans.edit": "Edit plan",
+    "admin.plans.cancel": "Cancel",
+    "admin.plans.save": "Save",
 
     // -- Status --
     "status.active": "active",
