@@ -67,17 +67,33 @@ async fn main() -> Result<()> {
     info!("firewall ruleset initialized");
 
     // Restore active sessions from database into nftables
+    // Also expire any sessions that have already elapsed during downtime
     let active_sessions = database.get_active_sessions().await?;
+    let grace = config.session.grace_period_seconds;
+    let mut restored_count = 0;
+    let mut expired_count = 0;
+
     for session in &active_sessions {
         let remaining = session.remaining_seconds();
-        if remaining > 0 && let Err(e) = fw.authorize_mac(&session.mac_address, remaining as u64).await {
-            tracing::warn!(
-                mac = %session.mac_address,
-                "failed to restore session: {e}"
-            );
+        if remaining > grace {
+            // Session still valid - restore to firewall
+            if let Err(e) = fw.authorize_mac(&session.mac_address, remaining as u64).await {
+                tracing::warn!(mac = %session.mac_address, "failed to restore session: {e}");
+            } else {
+                restored_count += 1;
+            }
+        } else {
+            // Session has expired - mark as expired in DB
+            if let Err(e) = database.expire_session(session.id).await {
+                tracing::warn!(session_id = session.id, "failed to expire session: {e}");
+            } else {
+                database.expire_token(session.token_id).await.ok();
+                expired_count += 1;
+                tracing::info!(session_id = session.id, "session expired during downtime");
+            }
         }
     }
-    info!("restored {} active sessions", active_sessions.len());
+    info!("restored {} active sessions, expired {} during downtime", restored_count, expired_count);
 
     let admin_sessions = services::admin_session::AdminSessionStore::new(
         config.admin.session_timeout_seconds,
