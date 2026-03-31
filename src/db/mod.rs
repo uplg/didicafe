@@ -232,8 +232,10 @@ impl Database {
 
     pub async fn get_active_sessions(&self) -> Result<Vec<Session>> {
         let sessions = sqlx::query_as::<_, Session>(
-            "SELECT id, token_id, mac_address, ip_address, started_at, expires_at, status \
-             FROM session WHERE status = 'active'",
+            "SELECT s.id, s.token_id, s.mac_address, s.ip_address, s.started_at, s.expires_at, s.status, \
+                    t.code as token_code, t.name as token_name \
+             FROM session s JOIN token t ON s.token_id = t.id \
+             WHERE s.status = 'active'",
         )
         .fetch_all(&self.pool)
         .await?;
@@ -258,8 +260,10 @@ impl Database {
 
     pub async fn get_session_by_mac(&self, mac: &str) -> Result<Option<Session>> {
         let session = sqlx::query_as::<_, Session>(
-            "SELECT id, token_id, mac_address, ip_address, started_at, expires_at, status \
-             FROM session WHERE mac_address = ?1 AND status = 'active'",
+            "SELECT s.id, s.token_id, s.mac_address, s.ip_address, s.started_at, s.expires_at, s.status, \
+                    t.code as token_code, t.name as token_name \
+             FROM session s JOIN token t ON s.token_id = t.id \
+             WHERE s.mac_address = ?1 AND s.status = 'active'",
         )
         .bind(mac)
         .fetch_optional(&self.pool)
@@ -490,6 +494,8 @@ mod tests {
             started_at: "2026-01-01 00:00:00".to_string(),
             expires_at: "2099-12-31 23:59:59".to_string(),
             status: "active".to_string(),
+            token_code: None,
+            token_name: None,
         };
         assert!(session.remaining_seconds() > 0);
     }
@@ -500,6 +506,8 @@ mod tests {
             id: 1,
             token_id: 1,
             mac_address: "AA:BB:CC:DD:EE:FF".to_string(),
+            token_code: None,
+            token_name: None,
             ip_address: "10.0.0.1".to_string(),
             started_at: "2020-01-01 00:00:00".to_string(),
             expires_at: "2020-01-01 01:00:00".to_string(),
@@ -518,6 +526,8 @@ mod tests {
             started_at: String::new(),
             expires_at: "not-a-date".to_string(),
             status: "active".to_string(),
+            token_code: None,
+            token_name: None,
         };
         assert_eq!(session.remaining_seconds(), 0);
     }

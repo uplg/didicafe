@@ -109,9 +109,19 @@ pub struct Session {
     pub started_at: String,
     pub expires_at: String,
     pub status: String,
+    pub token_code: Option<String>,
+    pub token_name: Option<String>,
 }
 
 impl Session {
+    pub fn token_code(&self) -> String {
+        self.token_code.clone().unwrap_or_default()
+    }
+
+    pub fn token_name(&self) -> String {
+        self.token_name.clone().unwrap_or_default()
+    }
+
     /// Returns remaining seconds for this session, or 0 if expired.
     pub fn remaining_seconds(&self) -> i64 {
         let Ok(expires) =

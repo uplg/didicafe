@@ -30,6 +30,7 @@
         <table>
             <thead>
                 <tr>
+                    <th>Code</th>
                     <th data-i18n="admin.dash.col_mac">MAC</th>
                     <th data-i18n="admin.dash.col_ip">IP</th>
                     <th data-i18n="admin.dash.col_remaining">Sisa</th>
@@ -39,6 +40,10 @@
             <tbody>
                 {% for s in active_sessions %}
                 <tr id="session-{{ s.id }}">
+                    <td>
+                        <code>{{ s.token_code() }}</code>
+                        <span class="text-muted text-xs">{{ s.token_name() }}</span>
+                    </td>
                     <td><code>{{ s.mac_address }}</code></td>
                     <td>{{ s.ip_address }}</td>
                     <td>{{ s.remaining_seconds() / 60 }} min</td>
