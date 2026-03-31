@@ -87,6 +87,7 @@ pub struct ManageForm {
     name: Option<String>,
     duration: Option<i64>,
     price: Option<i64>,
+    plan_name: Option<String>,
 }
 
 // -- Routes --
@@ -195,22 +196,27 @@ async fn manage_submit(
     _admin: AdminSession,
     Form(form): Form<ManageForm>,
 ) -> Result<impl IntoResponse, AppError> {
-    let message = if let Some(plan_id) = form.plan_id {
+    let message = if let Some(plan_name) = &form.plan_name {
+        if !plan_name.is_empty() {
+            state.db.create_plan(plan_name, form.duration.unwrap_or(60), form.price.unwrap_or(1000)).await
+                .map_err(AppError::Internal)?;
+            Some(format!("Plan '{}' created.", plan_name))
+        } else {
+            None
+        }
+    } else if let Some(plan_id) = form.plan_id {
         if form.count.unwrap_or(0) > 0 {
-            let token_name = form.name.as_deref();
+            let token_name = form.name.as_deref().unwrap_or_default();
             let codes = crate::services::token::generate_tokens(
                 &state.db,
                 &state.config.token,
                 plan_id,
                 form.count.unwrap_or(1),
-                token_name,
+                Some(token_name),
             ).await.map_err(AppError::Internal)?;
             Some(format!("{} token(s) generated", codes.len()))
         } else {
-            let name = form.name.unwrap_or_default();
-            state.db.create_plan(&name, form.duration.unwrap_or(60), form.price.unwrap_or(1000)).await
-                .map_err(AppError::Internal)?;
-            Some(format!("Plan '{}' created.", name))
+            None
         }
     } else {
         None
