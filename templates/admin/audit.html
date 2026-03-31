@@ -1,0 +1,64 @@
+{% extends "admin/base.html" %}
+
+{% block title %}DidiCafe Admin - Journal{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h1 data-i18n="admin.audit.title">Journal d'audit</h1>
+
+    {% if entries.is_empty() %}
+    <p class="text-muted text-sm mt-sm" data-i18n="admin.audit.none">Aucune entrée.</p>
+    {% else %}
+    <div class="table-wrap mt-md">
+        <table>
+            <thead>
+                <tr>
+                    <th data-i18n="admin.audit.col_time">Date</th>
+                    <th data-i18n="admin.audit.col_user">Admin</th>
+                    <th data-i18n="admin.audit.col_action">Action</th>
+                    <th data-i18n="admin.audit.col_target">Cible</th>
+                    <th data-i18n="admin.audit.col_detail">Détail</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in entries %}
+                <tr>
+                    <td class="text-xs text-muted">{{ e.timestamp }}</td>
+                    <td><code class="text-xs">{{ e.admin_user }}</code></td>
+                    <td>
+                        {% if e.action == "login" %}
+                        <span class="badge badge--active" data-i18n="admin.audit.action_login">Connexion</span>
+                        {% else if e.action == "create_plan" %}
+                        <span class="badge badge--unused" data-i18n="admin.audit.action_create_plan">Forfait créé</span>
+                        {% else if e.action == "generate_tokens" %}
+                        <span class="badge badge--expired" data-i18n="admin.audit.action_generate_tokens">Codes générés</span>
+                        {% else if e.action == "disconnect_session" %}
+                        <span class="badge badge--expired" data-i18n="admin.audit.action_disconnect">Déconnexion</span>
+                        {% else if e.action == "revoke_token" %}
+                        <span class="badge badge--expired" data-i18n="admin.audit.action_revoke">Révocation</span>
+                        {% else %}
+                        <span class="badge">{{ e.action }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-xs">
+                        {% if let Some(tt) = e.target_type %}
+                        {{ tt }}{% if let Some(tid) = e.target_id %} #{{ tid }}{% endif %}
+                        {% else %}
+                        —
+                        {% endif %}
+                    </td>
+                    <td class="text-xs text-muted">
+                        {% if let Some(d) = e.detail %}
+                        {{ d }}
+                        {% else %}
+                        —
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

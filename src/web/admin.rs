@@ -74,6 +74,12 @@ struct ManageTemplate {
     message: Option<String>,
 }
 
+#[derive(Template)]
+#[template(path = "admin/audit.html")]
+struct AuditTemplate {
+    entries: Vec<crate::db::AuditLogEntry>,
+}
+
 // -- Forms --
 
 #[derive(Deserialize)]
@@ -101,6 +107,7 @@ pub fn routes() -> Router<Arc<AppState>> {
         .route("/admin/login", get(login_page).post(login_submit))
         .route("/admin/logout", post(logout))
         .route("/admin/manage", get(manage_page).post(manage_submit))
+        .route("/admin/audit", get(audit_page))
 }
 
 /// GET /admin — redirect to login if not authenticated
@@ -278,6 +285,16 @@ async fn manage_submit(
         sessions,
         message,
     })
+}
+
+/// GET /admin/audit — audit log viewer (requires auth)
+async fn audit_page(
+    State(state): State<Arc<AppState>>,
+    _admin: AdminSession,
+) -> Result<impl IntoResponse, AppError> {
+    let entries = state.db.get_audit_log(200).await
+        .map_err(AppError::Internal)?;
+    render(&AuditTemplate { entries })
 }
 
 #[cfg(test)]
