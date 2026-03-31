@@ -63,6 +63,13 @@ pub struct RateLimitConfig {
 pub struct SessionConfig {
     pub cleanup_interval_seconds: u64,
     pub grace_period_seconds: i64,
+    /// Days to retain expired/disconnected sessions before hard deletion.
+    #[serde(default = "default_session_retention_days")]
+    pub retention_days: i64,
+}
+
+fn default_session_retention_days() -> i64 {
+    90
 }
 
 impl Config {
@@ -90,6 +97,11 @@ impl Config {
             "server.listen must not be empty"
         );
         anyhow::ensure!(
+            self.server.listen.parse::<std::net::IpAddr>().is_ok(),
+            "server.listen must be a valid IP address, got '{}'",
+            self.server.listen
+        );
+        anyhow::ensure!(
             !self.server.interface.is_empty(),
             "server.interface must not be empty"
         );
@@ -112,6 +124,30 @@ impl Config {
         anyhow::ensure!(
             self.admin.session_timeout_seconds > 0,
             "admin.session_timeout_seconds must be > 0"
+        );
+
+        // Firewall
+        anyhow::ensure!(
+            !self.firewall.nft_path.is_empty(),
+            "firewall.nft_path must not be empty"
+        );
+        anyhow::ensure!(
+            !self.firewall.table_name.is_empty()
+                && self
+                    .firewall
+                    .table_name
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_'),
+            "firewall.table_name must contain only alphanumeric characters and underscores"
+        );
+        anyhow::ensure!(
+            !self.firewall.set_name.is_empty()
+                && self
+                    .firewall
+                    .set_name
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_'),
+            "firewall.set_name must contain only alphanumeric characters and underscores"
         );
 
         // Token
@@ -195,6 +231,7 @@ mod tests {
             session: SessionConfig {
                 cleanup_interval_seconds: 30,
                 grace_period_seconds: 10,
+                retention_days: 90,
             },
         }
     }
@@ -242,6 +279,20 @@ mod tests {
     fn test_ban_below_max_rejected() {
         let mut cfg = valid_config();
         cfg.rate_limit.ban_after_attempts = 3; // below max_auth_attempts=5
+        assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn test_firewall_table_name_injection_rejected() {
+        let mut cfg = valid_config();
+        cfg.firewall.table_name = "didicafe; DROP TABLE".to_string();
+        assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn test_firewall_set_name_injection_rejected() {
+        let mut cfg = valid_config();
+        cfg.firewall.set_name = "auth_macs; rm -rf".to_string();
         assert!(cfg.validate().is_err());
     }
 }

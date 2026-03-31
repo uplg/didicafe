@@ -5,17 +5,8 @@
 {% block body %}
 <main class="container" role="main">
     <div class="card">
-        <div class="brand">
-            <div class="brand-icon" aria-hidden="true">D</div>
-            <h1 data-i18n="portal.brand">DidiCafe</h1>
-            <p class="brand-sub" data-i18n="portal.subtitle">WiFi an'ny rehetra</p>
-        </div>
-
-        <div class="lang-switcher" style="margin: 0 auto var(--s-lg);">
-            <button type="button" class="lang-btn" data-lang="mg">MG</button>
-            <button type="button" class="lang-btn" data-lang="fr">FR</button>
-            <button type="button" class="lang-btn" data-lang="en">EN</button>
-        </div>
+        {% include "partials/brand.html" %}
+        {% include "partials/lang_switcher.html" %}
 
         {% if let Some(err) = error %}
         <div class="alert alert--error" role="alert">{{ err }}</div>
@@ -45,6 +36,11 @@
                 Hiditra
             </button>
         </form>
+
+        <p class="text-muted text-xs text-center mt-lg" data-i18n="portal.privacy">
+            En vous connectant, votre adresse MAC et IP sont stockées pour la durée de votre session.
+            <a href="/portal/privacy" data-i18n="portal.privacy_link">En savoir plus</a>.
+        </p>
     </div>
 </main>
 {% endblock %}

@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
+use tokio_util::sync::CancellationToken;
 use tracing::info;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -95,6 +96,18 @@ async fn main() -> Result<()> {
     }
     info!("restored {} active sessions, expired {} during downtime", restored_count, expired_count);
 
+    // Purge old expired/disconnected sessions (retention policy)
+    let retention = config.session.retention_days;
+    match database.purge_expired_sessions(retention).await {
+        Ok(purged) if purged > 0 => {
+            info!("purged {purged} expired sessions older than {retention} days");
+        }
+        Ok(_) => {}
+        Err(e) => {
+            tracing::warn!("failed to purge expired sessions: {e}");
+        }
+    }
+
     let admin_sessions = services::admin_session::AdminSessionStore::new(
         config.admin.session_timeout_seconds,
     );
@@ -109,10 +122,14 @@ async fn main() -> Result<()> {
         rate_limiter,
     });
 
-    // Spawn session cleanup ticker
+    // Cancellation token for graceful shutdown
+    let shutdown = CancellationToken::new();
+
+    // Spawn session cleanup ticker with shutdown signal
     let cleanup_state = Arc::clone(&state);
+    let cleanup_shutdown = shutdown.clone();
     tokio::spawn(async move {
-        services::session::cleanup_ticker(cleanup_state).await;
+        services::session::cleanup_ticker(cleanup_state, cleanup_shutdown).await;
     });
 
     // Build and serve HTTP
@@ -120,11 +137,23 @@ async fn main() -> Result<()> {
     let addr = format!("{}:{}", config.server.listen, config.server.port);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     info!("listening on {addr}");
-    axum::serve(
+
+    // Wait for SIGTERM/SIGINT then gracefully shut down
+    let shutdown_signal = tokio::signal::ctrl_c();
+    let server = axum::serve(
         listener,
         app.into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .await?;
+    );
+
+    tokio::select! {
+        result = server => {
+            result?;
+        }
+        _ = shutdown_signal => {
+            info!("shutdown signal received, draining...");
+            shutdown.cancel();
+        }
+    }
 
     Ok(())
 }

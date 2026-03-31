@@ -33,6 +33,10 @@ struct SuccessTemplate {
 #[template(path = "expired.html")]
 struct ExpiredTemplate;
 
+#[derive(Template)]
+#[template(path = "privacy.html")]
+struct PrivacyTemplate;
+
 // -- Form --
 
 #[derive(Deserialize)]
@@ -44,11 +48,21 @@ pub struct AuthForm {
 
 pub fn routes() -> Router<Arc<AppState>> {
     Router::new()
+        .route("/health", get(health_check))
         .route("/portal", get(portal_page))
         .route("/portal/auth", post(portal_auth))
         .route("/portal/success", get(success_page))
         .route("/portal/expired", get(expired_page))
         .route("/portal/status", get(portal_status))
+        .route("/portal/privacy", get(privacy_page))
+}
+
+/// GET /health -- health check for process supervision
+async fn health_check(State(state): State<Arc<AppState>>) -> axum::http::StatusCode {
+    match state.db.get_daily_stats().await {
+        Ok(_) => axum::http::StatusCode::OK,
+        Err(_) => axum::http::StatusCode::SERVICE_UNAVAILABLE,
+    }
 }
 
 /// GET /portal -- splash page with token input
@@ -176,6 +190,11 @@ async fn portal_status(
     Ok(Json(response))
 }
 
+/// GET /portal/privacy — privacy notice
+async fn privacy_page() -> Result<impl IntoResponse, AppError> {
+    render(&PrivacyTemplate)
+}
+
 #[cfg(test)]
 mod tests {
     use std::net::SocketAddr;
@@ -233,6 +252,7 @@ mod tests {
             session: SessionConfig {
                 cleanup_interval_seconds: 30,
                 grace_period_seconds: 10,
+                retention_days: 90,
             },
         };
 

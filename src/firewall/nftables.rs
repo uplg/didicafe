@@ -86,18 +86,24 @@ impl Firewall for NftablesController {
 
     fn init_ruleset(&self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
         Box::pin(async move {
-            // Create table if not exists
-            self.run_nft(&format!("add table inet {}", self.table_name))
-                .await
-                .ok(); // ignore "already exists"
+            // Create table if not exists — only ignore "already exists" errors
+            if let Err(e) = self.run_nft(&format!("add table inet {}", self.table_name)).await {
+                let err_msg = e.to_string();
+                if !err_msg.contains("already") {
+                    return Err(e);
+                }
+            }
 
             // Create authenticated MAC set with timeout support
-            self.run_nft(&format!(
+            if let Err(e) = self.run_nft(&format!(
                 "add set inet {} {} {{ type ether_addr; flags timeout; }}",
                 self.table_name, self.set_name
-            ))
-            .await
-            .ok(); // ignore "already exists"
+            )).await {
+                let err_msg = e.to_string();
+                if !err_msg.contains("already") {
+                    return Err(e);
+                }
+            }
 
             Ok(())
         })

@@ -4,7 +4,7 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::{delete, get, post, put},
+    routing::{delete, get, patch, post, put},
 };
 use serde::{Deserialize, Serialize};
 
@@ -45,6 +45,11 @@ pub struct UpdatePlanRequest {
 }
 
 #[derive(Deserialize)]
+pub struct TogglePlanActiveRequest {
+    active: bool,
+}
+
+#[derive(Deserialize)]
 pub struct GenerateTokensRequest {
     plan_id: i64,
     count: usize,
@@ -62,6 +67,7 @@ pub fn routes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/api/plans", get(list_plans).post(create_plan))
         .route("/api/plans/{id}", put(update_plan))
+        .route("/api/plans/{id}/active", patch(toggle_plan_active))
         .route("/api/tokens", get(list_tokens))
         .route("/api/tokens/generate", post(generate_tokens))
         .route("/api/tokens/{id}", delete(revoke_token))
@@ -123,6 +129,24 @@ async fn update_plan(
         return Err(AppError::NotFound(format!("plan {id} not found")));
     }
     Ok(ApiResponse::success(serde_json::json!({ "id": id })))
+}
+
+async fn toggle_plan_active(
+    State(state): State<Arc<AppState>>,
+    _admin: AdminSession,
+    Path(id): Path<i64>,
+    Json(req): Json<TogglePlanActiveRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let plan = state.db.get_plan(id).await
+        .map_err(AppError::Internal)?
+        .ok_or_else(|| AppError::NotFound(format!("plan {id} not found")))?;
+
+    let updated = state.db.update_plan(id, &plan.name, plan.duration_minutes, plan.price_ariary, req.active).await
+        .map_err(AppError::Internal)?;
+    if !updated {
+        return Err(AppError::NotFound(format!("plan {id} not found")));
+    }
+    Ok(ApiResponse::success(serde_json::json!({ "id": id, "active": req.active })))
 }
 
 async fn list_tokens(

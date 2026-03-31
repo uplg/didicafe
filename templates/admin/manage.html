@@ -203,11 +203,11 @@ function disconnectSession(id, btn) {
 
 function togglePlan(id, activate, btn) {
     btn.disabled = true;
-    fetch("/api/plans/" + id, {
-        method: "PUT",
+    fetch("/api/plans/" + id + "/active", {
+        method: "PATCH",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "temp", duration_minutes: 60, price_ariary: 1000, active: activate })
+        body: JSON.stringify({ active: activate })
     }).then(function(r) { if (r.ok) window.location.reload(); });
 }
 

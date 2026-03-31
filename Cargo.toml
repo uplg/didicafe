@@ -43,6 +43,9 @@ clap = { version = "4", features = ["derive"] }
 thiserror = "2"
 anyhow = "1"
 
+# Cancellation
+tokio-util = { version = "0.7", features = ["rt"] }
+
 [profile.release]
 opt-level = "z"     # Optimize for size (embedded target)
 lto = true          # Link-time optimization

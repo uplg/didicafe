@@ -1,8 +1,10 @@
 use askama::Template;
 use axum::{
+    Json,
     http::StatusCode,
     response::{Html, IntoResponse, Redirect, Response},
 };
+use serde_json::json;
 use tracing::error;
 
 /// Application-level error type for all handlers.
@@ -18,7 +20,10 @@ pub enum AppError {
     Firewall(anyhow::Error),
 
     #[error("authentication required")]
-    Unauthorized,
+    Unauthorized {
+        /// If true, return 401 JSON (for API endpoints). If false, redirect to login.
+        api_path: bool,
+    },
 
     #[error("not found: {0}")]
     NotFound(String),
@@ -47,9 +52,13 @@ impl IntoResponse for AppError {
                 error!("firewall error: {e}");
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error.")
             }
-            AppError::Unauthorized => {
-                // Redirect to login page — browser admin and API consumers
-                // both benefit from a redirect (API callers check for 303).
+            AppError::Unauthorized { api_path } => {
+                if *api_path {
+                    return (
+                        StatusCode::UNAUTHORIZED,
+                        Json(json!({ "error": "authentication required" })),
+                    ).into_response();
+                }
                 return Redirect::to("/admin/login").into_response();
             }
             AppError::NotFound(detail) => {

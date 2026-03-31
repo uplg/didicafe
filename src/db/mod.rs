@@ -6,6 +6,46 @@ use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 use sqlx::sqlite::SqlitePoolOptions;
 
+// -- Shared SQL query constants --
+// All token queries use the same column list and JOIN. All session queries use
+// the same column list and JOIN. If the schema changes, update the constants
+// below in one place.
+
+const TOKEN_BY_CODE: &str =
+    "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
+            t.redeemed_at, t.expires_at, p.duration_minutes \
+     FROM token t JOIN plan p ON t.plan_id = p.id WHERE t.code = ?1";
+
+const TOKEN_BY_ID: &str =
+    "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
+            t.redeemed_at, t.expires_at, p.duration_minutes \
+     FROM token t JOIN plan p ON t.plan_id = p.id WHERE t.id = ?1";
+
+const TOKEN_LIST: &str =
+    "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
+            t.redeemed_at, t.expires_at, p.duration_minutes \
+     FROM token t JOIN plan p ON t.plan_id = p.id ORDER BY t.created_at DESC";
+
+const TOKEN_LIST_BY_STATUS: &str =
+    "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
+            t.redeemed_at, t.expires_at, p.duration_minutes \
+     FROM token t JOIN plan p ON t.plan_id = p.id WHERE t.status = ?1 ORDER BY t.created_at DESC";
+
+const SESSION_ACTIVE: &str =
+    "SELECT s.id, s.token_id, s.mac_address, s.ip_address, s.started_at, s.expires_at, s.status, \
+            t.code as token_code, t.name as token_name \
+     FROM session s JOIN token t ON s.token_id = t.id WHERE s.status = 'active'";
+
+const SESSION_BY_MAC: &str =
+    "SELECT s.id, s.token_id, s.mac_address, s.ip_address, s.started_at, s.expires_at, s.status, \
+            t.code as token_code, t.name as token_name \
+     FROM session s JOIN token t ON s.token_id = t.id WHERE s.mac_address = ?1 AND s.status = 'active'";
+
+const SESSION_BY_ID: &str =
+    "SELECT s.id, s.token_id, s.mac_address, s.ip_address, s.started_at, s.expires_at, s.status, \
+            t.code as token_code, t.name as token_name \
+     FROM session s JOIN token t ON s.token_id = t.id WHERE s.id = ?1";
+
 /// Async SQLite database wrapper using sqlx.
 ///
 /// Uses a connection pool internally. SQLite in WAL mode supports
@@ -49,7 +89,11 @@ impl Database {
         sqlx::query(include_str!("../../migrations/001_initial_schema.sql"))
             .execute(&self.pool)
             .await
-            .context("failed to run migrations")?;
+            .context("failed to run migration 001")?;
+        sqlx::query(include_str!("../../migrations/002_audit_log.sql"))
+            .execute(&self.pool)
+            .await
+            .context("failed to run migration 002")?;
         Ok(())
     }
 
@@ -130,26 +174,18 @@ impl Database {
     }
 
     pub async fn get_token_by_code(&self, code: &str) -> Result<Option<Token>> {
-        let token = sqlx::query_as::<_, Token>(
-            "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
-                    t.redeemed_at, t.expires_at, p.duration_minutes \
-             FROM token t JOIN plan p ON t.plan_id = p.id WHERE t.code = ?1",
-        )
-        .bind(code)
-        .fetch_optional(&self.pool)
-        .await?;
+        let token = sqlx::query_as::<_, Token>(TOKEN_BY_CODE)
+            .bind(code)
+            .fetch_optional(&self.pool)
+            .await?;
         Ok(token)
     }
 
     pub async fn get_token_by_id(&self, id: i64) -> Result<Option<Token>> {
-        let token = sqlx::query_as::<_, Token>(
-            "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
-                    t.redeemed_at, t.expires_at, p.duration_minutes \
-             FROM token t JOIN plan p ON t.plan_id = p.id WHERE t.id = ?1",
-        )
-        .bind(id)
-        .fetch_optional(&self.pool)
-        .await?;
+        let token = sqlx::query_as::<_, Token>(TOKEN_BY_ID)
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
         Ok(token)
     }
 
@@ -176,25 +212,15 @@ impl Database {
     pub async fn list_tokens(&self, status_filter: Option<&str>) -> Result<Vec<Token>> {
         let tokens = match status_filter {
             Some(status) => {
-                sqlx::query_as::<_, Token>(
-                    "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
-                            t.redeemed_at, t.expires_at, p.duration_minutes \
-                     FROM token t JOIN plan p ON t.plan_id = p.id \
-                     WHERE t.status = ?1 ORDER BY t.created_at DESC",
-                )
-                .bind(status)
-                .fetch_all(&self.pool)
-                .await?
+                sqlx::query_as::<_, Token>(TOKEN_LIST_BY_STATUS)
+                    .bind(status)
+                    .fetch_all(&self.pool)
+                    .await?
             }
             None => {
-                sqlx::query_as::<_, Token>(
-                    "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
-                            t.redeemed_at, t.expires_at, p.duration_minutes \
-                     FROM token t JOIN plan p ON t.plan_id = p.id \
-                     ORDER BY t.created_at DESC",
-                )
-                .fetch_all(&self.pool)
-                .await?
+                sqlx::query_as::<_, Token>(TOKEN_LIST)
+                    .fetch_all(&self.pool)
+                    .await?
             }
         };
         Ok(tokens)
@@ -231,14 +257,9 @@ impl Database {
     }
 
     pub async fn get_active_sessions(&self) -> Result<Vec<Session>> {
-        let sessions = sqlx::query_as::<_, Session>(
-            "SELECT s.id, s.token_id, s.mac_address, s.ip_address, s.started_at, s.expires_at, s.status, \
-                    t.code as token_code, t.name as token_name \
-             FROM session s JOIN token t ON s.token_id = t.id \
-             WHERE s.status = 'active'",
-        )
-        .fetch_all(&self.pool)
-        .await?;
+        let sessions = sqlx::query_as::<_, Session>(SESSION_ACTIVE)
+            .fetch_all(&self.pool)
+            .await?;
         Ok(sessions)
     }
 
@@ -258,17 +279,81 @@ impl Database {
         Ok(())
     }
 
-    pub async fn get_session_by_mac(&self, mac: &str) -> Result<Option<Session>> {
-        let session = sqlx::query_as::<_, Session>(
-            "SELECT s.id, s.token_id, s.mac_address, s.ip_address, s.started_at, s.expires_at, s.status, \
-                    t.code as token_code, t.name as token_name \
-             FROM session s JOIN token t ON s.token_id = t.id \
-             WHERE s.mac_address = ?1 AND s.status = 'active'",
+    /// Hard-delete expired and disconnected sessions older than `retention_days`.
+    /// Also deletes associated tokens that have no active sessions.
+    pub async fn purge_expired_sessions(&self, retention_days: i64) -> Result<u64> {
+        let result = sqlx::query(
+            "DELETE FROM session \
+             WHERE status IN ('expired', 'disconnected') \
+             AND started_at < datetime('now', ?1 || ' days')",
         )
-        .bind(mac)
-        .fetch_optional(&self.pool)
+        .bind(format!("-{retention_days}"))
+        .execute(&self.pool)
         .await?;
+
+        // Also purge orphan tokens (expired/revoked with no referencing session at all).
+        // We must check ALL sessions (not just active) because expired/disconnected
+        // sessions within the retention window still hold FK references.
+        sqlx::query(
+            "DELETE FROM token \
+             WHERE status IN ('expired', 'revoked') \
+             AND id NOT IN (SELECT token_id FROM session)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(result.rows_affected())
+    }
+
+    pub async fn get_session_by_mac(&self, mac: &str) -> Result<Option<Session>> {
+        let session = sqlx::query_as::<_, Session>(SESSION_BY_MAC)
+            .bind(mac)
+            .fetch_optional(&self.pool)
+            .await?;
         Ok(session)
+    }
+
+    pub async fn get_session_by_id(&self, id: i64) -> Result<Option<Session>> {
+        let session = sqlx::query_as::<_, Session>(SESSION_BY_ID)
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
+        Ok(session)
+    }
+
+    // -- Audit Log --
+
+    pub async fn audit_log(
+        &self,
+        admin_user: &str,
+        action: &str,
+        target_type: Option<&str>,
+        target_id: Option<i64>,
+        detail: Option<&str>,
+    ) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO audit_log (admin_user, action, target_type, target_id, detail) \
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+        )
+        .bind(admin_user)
+        .bind(action)
+        .bind(target_type)
+        .bind(target_id)
+        .bind(detail)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn get_audit_log(&self, limit: i64) -> Result<Vec<AuditLogEntry>> {
+        let entries = sqlx::query_as::<_, AuditLogEntry>(
+            "SELECT id, timestamp, admin_user, action, target_type, target_id, detail \
+             FROM audit_log ORDER BY timestamp DESC LIMIT ?1",
+        )
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(entries)
     }
 
     // -- Stats --

@@ -176,8 +176,6 @@ fn dev_fake_mac(ip: IpAddr) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_parse_proc_net_arp() {
         // Write a fake /proc/net/arp content and test parsing

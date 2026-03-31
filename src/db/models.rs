@@ -146,3 +146,14 @@ pub struct DailyStats {
     pub active_sessions: i64,
     pub revenue_ariary: i64,
 }
+
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+pub struct AuditLogEntry {
+    pub id: i64,
+    pub timestamp: String,
+    pub admin_user: String,
+    pub action: String,
+    pub target_type: Option<String>,
+    pub target_id: Option<i64>,
+    pub detail: Option<String>,
+}

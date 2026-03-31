@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}DidiCafe - Confidentialité{% endblock %}
+
+{% block body %}
+<main class="container" role="main">
+    <div class="card">
+        <h1 data-i18n="privacy.title">Confidentialité</h1>
+
+        <div class="text-sm">
+            <p data-i18n="privacy.intro">
+                DidiCafe collecte uniquement les données nécessaires au fonctionnement du service WiFi.
+            </p>
+
+            <h2 data-i18n="privacy.data_title">Données collectées</h2>
+            <ul>
+                <li data-i18n="privacy.data_mac"><strong>Adresse MAC</strong> — identifiant unique de votre appareil, stockée pour gérer l'accès au réseau via le pare-feu.</li>
+                <li data-i18n="privacy.data_ip"><strong>Adresse IP</strong> — assignée automatiquement par le serveur DHCP, utilisée pour le suivi de session.</li>
+                <li data-i18n="privacy.data_session"><strong>Durée de session</strong> — heure de début et d'expiration, pour gérer le temps d'accès acheté.</li>
+            </ul>
+
+            <h2 data-i18n="privacy.retention_title">Conservation</h2>
+            <p data-i18n="privacy.retention">
+                Les données de session sont supprimées automatiquement après 90 jours.
+                Les tokens expirés ou révoqués sont également supprimés.
+            </p>
+
+            <h2 data-i18n="privacy.rights_title">Vos droits</h2>
+            <p data-i18n="privacy.rights">
+                Vous pouvez demander la suppression de vos données en contactant le personnel du café.
+            </p>
+
+            <h2 data-i18n="privacy.security_title">Sécurité</h2>
+            <p data-i18n="privacy.security">
+                Les données sont stockées localement sur le serveur du café. Aucune donnée n'est transmise à des services tiers.
+            </p>
+        </div>
+
+        <div class="mt-lg text-center">
+            <a href="/portal" class="btn btn--outline" data-i18n="privacy.back">Retour</a>
+        </div>
+    </div>
+</main>
+{% endblock %}

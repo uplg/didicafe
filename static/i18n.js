@@ -124,6 +124,23 @@ const TRANSLATIONS = {
     "status.unused": "mbola tsy nampiasaina",
     "status.expired": "tapitra",
     "status.revoked": "nesorina",
+
+    // -- Privacy --
+    "privacy.title": "Mombamomba ny tsiambaratelo",
+    "privacy.intro": "DidiCafe dia manangona angon-drakitra ilaina fotsiny ho an'ny fampiasana WiFi.",
+    "privacy.data_title": "Angon-drakitra angonina",
+    "privacy.data_mac": "Adiresy MAC — famantarana tokana ny fitaovanao, voatahirizy ho an'ny fampiditra amin'ny tambajotra.",
+    "privacy.data_ip": "Adiresy IP — nomen'ny DHCP, ampiasaina ho an'ny fanaraha-maso session.",
+    "privacy.data_session": "Faharetan'ny session — ora nanombohana sy hifarana, ho an'ny fotoana novidina.",
+    "privacy.retention_title": "Fitehirizana",
+    "privacy.retention": "Ny angon-drakitra session dia voafafa mandeha hoazy rehefa afaka 90 andro.",
+    "privacy.rights_title": "Zo anao",
+    "privacy.rights": "Afaka mangataka ny fanafoanana ny angonao amin'ny mpiasan'ny cafe.",
+    "privacy.security_title": "Fiarovana",
+    "privacy.security": "Voatahirizy eto an-toerana ny angon-drakitra. Tsy alefa any amin'ny antoko hafa.",
+    "privacy.back": "Hiverina",
+    "portal.privacy": "Mifandray, ny MAC-nao sy IP-nao dia voatahirizy mandritra ny session-nao.",
+    "portal.privacy_link": "Hahalala bebe kokoa",
   },
 
   fr: {
@@ -235,6 +252,23 @@ const TRANSLATIONS = {
     "status.unused": "non utilisé",
     "status.expired": "expiré",
     "status.revoked": "révoqué",
+
+    // -- Privacy --
+    "privacy.title": "Confidentialité",
+    "privacy.intro": "DidiCafe ne collecte que les données nécessaires au fonctionnement du WiFi.",
+    "privacy.data_title": "Données collectées",
+    "privacy.data_mac": "Adresse MAC — identifiant de votre appareil, stockée pour gérer l'accès réseau.",
+    "privacy.data_ip": "Adresse IP — assignée par DHCP, utilisée pour le suivi de session.",
+    "privacy.data_session": "Durée de session — heure de début et d'expiration, pour gérer le temps acheté.",
+    "privacy.retention_title": "Conservation",
+    "privacy.retention": "Les données de session sont supprimées automatiquement après 90 jours.",
+    "privacy.rights_title": "Vos droits",
+    "privacy.rights": "Vous pouvez demander la suppression de vos données auprès du personnel du café.",
+    "privacy.security_title": "Sécurité",
+    "privacy.security": "Les données sont stockées localement. Aucune transmission à des tiers.",
+    "privacy.back": "Retour",
+    "portal.privacy": "En vous connectant, votre MAC et IP sont stockés pour la durée de votre session.",
+    "portal.privacy_link": "En savoir plus",
   },
 
   en: {
@@ -346,6 +380,23 @@ const TRANSLATIONS = {
     "status.unused": "unused",
     "status.expired": "expired",
     "status.revoked": "revoked",
+
+    // -- Privacy --
+    "privacy.title": "Privacy",
+    "privacy.intro": "DidiCafe only collects data necessary for WiFi service operation.",
+    "privacy.data_title": "Data collected",
+    "privacy.data_mac": "MAC address — unique device identifier, stored for network access management.",
+    "privacy.data_ip": "IP address — assigned by DHCP, used for session tracking.",
+    "privacy.data_session": "Session duration — start and expiry time, to manage purchased access time.",
+    "privacy.retention_title": "Retention",
+    "privacy.retention": "Session data is automatically deleted after 90 days.",
+    "privacy.rights_title": "Your rights",
+    "privacy.rights": "You may request deletion of your data by contacting cafe staff.",
+    "privacy.security_title": "Security",
+    "privacy.security": "Data is stored locally. No data is transmitted to third parties.",
+    "privacy.back": "Back",
+    "portal.privacy": "By connecting, your MAC and IP are stored for the duration of your session.",
+    "portal.privacy_link": "Learn more",
   },
 };
 

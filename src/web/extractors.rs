@@ -82,11 +82,12 @@ impl FromRequestParts<Arc<AppState>> for AdminSession {
         parts: &mut Parts,
         state: &Arc<AppState>,
     ) -> Result<Self, Self::Rejection> {
+        let api_path = parts.uri.path().starts_with("/api/");
         let session_id = extract_cookie(&parts.headers, ADMIN_COOKIE_NAME)
-            .ok_or(AppError::Unauthorized)?;
+            .ok_or(AppError::Unauthorized { api_path })?;
 
         if !state.admin_sessions.validate(&session_id) {
-            return Err(AppError::Unauthorized);
+            return Err(AppError::Unauthorized { api_path });
         }
 
         Ok(AdminSession)
@@ -94,13 +95,16 @@ impl FromRequestParts<Arc<AppState>> for AdminSession {
 }
 
 /// Extract a cookie value by name from request headers.
+///
+/// Matches exact cookie names only — `strip_prefix("{name}=")` prevents
+/// prefix confusion attacks (e.g. `didicafe` matching `didicafe_admin`).
 pub fn extract_cookie(headers: &axum::http::HeaderMap, name: &str) -> Option<String> {
     let cookie_header = headers.get(axum::http::header::COOKIE)?.to_str().ok()?;
+    let prefix = format!("{name}=");
 
     for pair in cookie_header.split(';') {
         let pair = pair.trim();
-        if let Some(value) = pair.strip_prefix(name) {
-            let value = value.strip_prefix('=')?;
+        if let Some(value) = pair.strip_prefix(&prefix) {
             return Some(value.to_string());
         }
     }
@@ -152,5 +156,22 @@ mod tests {
     fn test_extract_cookie_no_header() {
         let headers = axum::http::HeaderMap::new();
         assert_eq!(extract_cookie(&headers, "didicafe_admin"), None);
+    }
+
+    #[test]
+    fn test_extract_cookie_prefix_attack() {
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert(
+            axum::http::header::COOKIE,
+            "didicafe=evil; didicafe_admin=legit".parse().unwrap(),
+        );
+        assert_eq!(
+            extract_cookie(&headers, "didicafe_admin"),
+            Some("legit".to_string())
+        );
+        assert_eq!(
+            extract_cookie(&headers, "didicafe"),
+            Some("evil".to_string())
+        );
     }
 }

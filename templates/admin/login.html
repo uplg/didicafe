@@ -5,17 +5,8 @@
 {% block body %}
 <main class="container" role="main">
     <div class="card">
-        <div class="brand">
-            <div class="brand-icon" aria-hidden="true">D</div>
-            <h1>DidiCafe</h1>
-            <p class="brand-sub" data-i18n="admin.login.title">Fidirana ho an'ny mpiasa</p>
-        </div>
-
-        <div class="lang-switcher" style="margin: 0 auto var(--s-lg);">
-            <button type="button" class="lang-btn" data-lang="mg">MG</button>
-            <button type="button" class="lang-btn" data-lang="fr">FR</button>
-            <button type="button" class="lang-btn" data-lang="en">EN</button>
-        </div>
+        {% include "../partials/brand.html" %}
+        {% include "../partials/lang_switcher.html" %}
 
         {% if let Some(err) = error %}
         <div class="alert alert--error" role="alert" data-i18n="admin.login.error">{{ err }}</div>
