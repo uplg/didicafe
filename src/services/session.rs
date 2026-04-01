@@ -57,6 +57,72 @@ pub async fn disconnect(state: &Arc<AppState>, session_id: i64) -> Result<()> {
     Ok(())
 }
 
+/// Migrate an active session to a new MAC address.
+///
+/// This handles the case where a client reconnects with a different MAC
+/// (Android 10+ / iOS 14+ MAC randomization, or WiFi outage causing
+/// the device to generate a new random MAC).
+///
+/// Flow:
+/// 1. Look up the active session for this token
+/// 2. Verify it still has remaining time
+/// 3. Deauthorize the old MAC from nftables
+/// 4. Close the old session (mark as disconnected)
+/// 5. Authorize the new MAC with the remaining time
+/// 6. Create a new session record
+///
+/// If the new MAC is the same as the old one (client reconnected without
+/// MAC change), this still works — it refreshes the nftables timeout.
+pub async fn migrate_session(
+    state: &Arc<AppState>,
+    token_id: i64,
+    new_mac: &str,
+    new_ip: &str,
+) -> Result<i64> {
+    let old_session = state.db.get_active_session_by_token(token_id).await?
+        .ok_or_else(|| anyhow::anyhow!("no active session for token {token_id}"))?;
+
+    let remaining = old_session.remaining_seconds();
+    if remaining <= 0 {
+        anyhow::bail!("session for token {token_id} has already expired");
+    }
+
+    // 1. Deauthorize old MAC (ignore errors — may already be gone after outage)
+    if let Err(e) = state.firewall.deauthorize_mac(&old_session.mac_address).await {
+        warn!(
+            session_id = old_session.id,
+            old_mac = %old_session.mac_address,
+            "deauthorize old MAC failed (may already be expired): {e}"
+        );
+    }
+
+    // 2. Close old session
+    state.db.disconnect_session(old_session.id).await?;
+
+    // 3. Authorize new MAC with remaining time
+    let timeout_secs = remaining as u64;
+    state.firewall.authorize_mac(new_mac, timeout_secs).await?;
+
+    // 4. Create new session with the original expiry time
+    let session_id = state.db.create_session(
+        token_id,
+        new_mac,
+        new_ip,
+        &old_session.expires_at,
+    ).await?;
+
+    info!(
+        old_session_id = old_session.id,
+        new_session_id = session_id,
+        old_mac = %old_session.mac_address,
+        new_mac = %new_mac,
+        remaining_seconds = remaining,
+        "session migrated to new MAC"
+    );
+
+    Ok(session_id)
+}
+
 /// Periodic cleanup: expire sessions whose time has elapsed, purge old data.
 /// Called by a tokio interval task. Cancels when `shutdown` is triggered.
 pub async fn cleanup_ticker(state: Arc<AppState>, shutdown: CancellationToken) {

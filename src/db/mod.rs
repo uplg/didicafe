@@ -46,6 +46,11 @@ const SESSION_BY_ID: &str =
             t.code as token_code, t.name as token_name \
      FROM session s JOIN token t ON s.token_id = t.id WHERE s.id = ?1";
 
+const SESSION_BY_TOKEN: &str =
+    "SELECT s.id, s.token_id, s.mac_address, s.ip_address, s.started_at, s.expires_at, s.status, \
+            t.code as token_code, t.name as token_name \
+     FROM session s JOIN token t ON s.token_id = t.id WHERE s.token_id = ?1 AND s.status = 'active'";
+
 /// Async SQLite database wrapper using sqlx.
 ///
 /// Uses a connection pool internally. SQLite in WAL mode supports
@@ -316,6 +321,16 @@ impl Database {
     pub async fn get_session_by_id(&self, id: i64) -> Result<Option<Session>> {
         let session = sqlx::query_as::<_, Session>(SESSION_BY_ID)
             .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
+        Ok(session)
+    }
+
+    /// Get the active session for a given token, if any.
+    /// Used by the session migration flow (MAC changed after WiFi reconnect).
+    pub async fn get_active_session_by_token(&self, token_id: i64) -> Result<Option<Session>> {
+        let session = sqlx::query_as::<_, Session>(SESSION_BY_TOKEN)
+            .bind(token_id)
             .fetch_optional(&self.pool)
             .await?;
         Ok(session)

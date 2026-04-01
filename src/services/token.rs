@@ -81,14 +81,33 @@ pub async fn generate_tokens(
     Ok(codes)
 }
 
-/// Validate a token code and return it if valid and unused.
-pub async fn validate_token(db: &Database, code: &str) -> Result<Option<crate::db::Token>> {
+/// Result of validating a token code against the database.
+#[derive(Debug)]
+pub enum TokenLookup {
+    /// Token is unused — ready for a fresh session.
+    Unused(crate::db::Token),
+    /// Token is active with remaining time — eligible for session migration
+    /// (e.g. client reconnected with a different MAC after WiFi outage).
+    Active(crate::db::Token),
+    /// Token not found, already expired, revoked, or otherwise invalid.
+    Invalid,
+}
+
+/// Validate a token code and classify it for the portal auth flow.
+///
+/// Returns `Unused` for fresh tokens, `Active` for tokens that still have
+/// remaining session time (MAC migration case), and `Invalid` for everything else.
+pub async fn validate_token(db: &Database, code: &str) -> Result<TokenLookup> {
     let token = db.get_token_by_code(code).await?;
 
     match token {
-        Some(t) if t.token_status() == Some(crate::db::TokenStatus::Unused) => Ok(Some(t)),
-        Some(_) => Ok(None), // token exists but already used/expired/revoked
-        None => Ok(None),    // token doesn't exist
+        Some(t) if t.token_status() == Some(crate::db::TokenStatus::Unused) => {
+            Ok(TokenLookup::Unused(t))
+        }
+        Some(t) if t.token_status() == Some(crate::db::TokenStatus::Active) => {
+            Ok(TokenLookup::Active(t))
+        }
+        _ => Ok(TokenLookup::Invalid),
     }
 }
 

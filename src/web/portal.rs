@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use crate::AppState;
 use crate::services;
 use crate::services::rate_limit::RateLimitResult;
+use crate::services::token::TokenLookup;
 use super::error::{AppError, render};
 use super::extractors::ClientInfo;
 
@@ -114,28 +115,51 @@ async fn portal_auth(
     }
 
     // Validate token against DB
-    let token = services::token::validate_token(&state.db, &code).await
+    let lookup = services::token::validate_token(&state.db, &code).await
         .map_err(AppError::Internal)?;
 
-    let Some(token) = token else {
-        return Ok(render(&PortalTemplate {
-            error: Some("Invalid or already used token.".to_string()),
-            csrf_token: state.portal_csrf_store.generate(&client.mac),
-        })?.into_response());
-    };
-
-    match services::session::create_session(
-        &state,
-        token.id,
-        token.duration_minutes,
-        &client.mac,
-        &client.ip.to_string(),
-    ).await {
-        Ok(_) => Ok(Redirect::to("/portal/success").into_response()),
-        Err(e) => {
-            tracing::error!("session creation failed: {e}");
+    match lookup {
+        TokenLookup::Unused(token) => {
+            // Fresh token — create a new session
+            match services::session::create_session(
+                &state,
+                token.id,
+                token.duration_minutes,
+                &client.mac,
+                &client.ip.to_string(),
+            ).await {
+                Ok(_) => Ok(Redirect::to("/portal/success").into_response()),
+                Err(e) => {
+                    tracing::error!("session creation failed: {e}");
+                    Ok(render(&PortalTemplate {
+                        error: Some("Internal error. Please try again.".to_string()),
+                        csrf_token: state.portal_csrf_store.generate(&client.mac),
+                    })?.into_response())
+                }
+            }
+        }
+        TokenLookup::Active(token) => {
+            // Token already active — migrate session to new MAC
+            // (handles MAC randomization after WiFi reconnect)
+            match services::session::migrate_session(
+                &state,
+                token.id,
+                &client.mac,
+                &client.ip.to_string(),
+            ).await {
+                Ok(_) => Ok(Redirect::to("/portal/success").into_response()),
+                Err(e) => {
+                    tracing::error!("session migration failed: {e}");
+                    Ok(render(&PortalTemplate {
+                        error: Some("Session expired. Please purchase a new token.".to_string()),
+                        csrf_token: state.portal_csrf_store.generate(&client.mac),
+                    })?.into_response())
+                }
+            }
+        }
+        TokenLookup::Invalid => {
             Ok(render(&PortalTemplate {
-                error: Some("Internal error. Please try again.".to_string()),
+                error: Some("Invalid or already used token.".to_string()),
                 csrf_token: state.portal_csrf_store.generate(&client.mac),
             })?.into_response())
         }
@@ -396,5 +420,80 @@ mod tests {
             response.headers().get("location").unwrap().to_str().unwrap(),
             "/portal"
         );
+    }
+
+    #[tokio::test]
+    async fn test_portal_auth_active_token_migrates_session() {
+        let state = test_state().await;
+
+        // Setup: create plan + token + first session (simulates initial connect)
+        let plan_id = state.db.create_plan("1h WiFi", 60, 1000).await.unwrap();
+        let token_id = state.db.create_token("DIDI-ABCD-EF23", None, plan_id).await.unwrap();
+
+        // Simulate first session on old MAC
+        crate::services::session::create_session(
+            &state, token_id, 60, "aa:bb:cc:dd:ee:01", "10.10.0.5",
+        ).await.unwrap();
+
+        // Verify: 1 active session, token is active
+        let sessions = state.db.get_active_sessions().await.unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].mac_address, "aa:bb:cc:dd:ee:01");
+
+        // Now client reconnects with new MAC (randomized), re-enters same token
+        state.portal_csrf_store.set("02:00:00:00:00:01", "csrf-migrate");
+        let app = portal_router(Arc::clone(&state));
+        let response = app
+            .oneshot(test_post_form("/portal/auth", "token=DIDI-ABCD-EF23&csrf_token=csrf-migrate"))
+            .await
+            .unwrap();
+
+        // Should redirect to /portal/success (migration succeeded)
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert_eq!(
+            response.headers().get("location").unwrap().to_str().unwrap(),
+            "/portal/success"
+        );
+
+        // Verify: old session disconnected, new session created on test MAC
+        let sessions = state.db.get_active_sessions().await.unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].mac_address, "02:00:00:00:00:01");
+
+        // Verify: token is still active (not consumed twice)
+        let token = state.db.get_token_by_code("DIDI-ABCD-EF23").await.unwrap().unwrap();
+        assert_eq!(token.status, "active");
+
+        // Verify: firewall was called (authorize old + deauthorize old + authorize new)
+        let fw = state.firewall.as_ref();
+        let mock = fw.as_any().downcast_ref::<MockFirewall>()
+            .expect("firewall should be MockFirewall in tests");
+        let calls = mock.calls();
+        // 1: authorize_mac(old), 2: deauthorize_mac(old), 3: authorize_mac(new)
+        assert_eq!(calls.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_portal_auth_expired_token_rejected() {
+        let state = test_state().await;
+
+        // Setup: create plan + token, then expire it
+        let plan_id = state.db.create_plan("1h WiFi", 60, 1000).await.unwrap();
+        let token_id = state.db.create_token("DIDI-EXPD-TK23", None, plan_id).await.unwrap();
+        state.db.redeem_token(token_id, "2020-01-01 00:00:00").await.unwrap();
+        state.db.expire_token(token_id).await.unwrap();
+
+        state.portal_csrf_store.set("02:00:00:00:00:01", "csrf-expired");
+        let app = portal_router(Arc::clone(&state));
+        let response = app
+            .oneshot(test_post_form("/portal/auth", "token=DIDI-EXPD-TK23&csrf_token=csrf-expired"))
+            .await
+            .unwrap();
+
+        // Expired tokens should be rejected
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let html = String::from_utf8_lossy(&body);
+        assert!(html.contains("Invalid or already used token"));
     }
 }
