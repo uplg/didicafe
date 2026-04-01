@@ -18,7 +18,7 @@ pub fn test_config() -> Config {
         server: ServerConfig {
             listen: "0.0.0.0".to_string(),
             port: 8080,
-            interface: "wlan0".to_string(),
+            interfaces: vec!["wlan0".to_string()],
         },
         database: DatabaseConfig {
             path: "/tmp/test.db".to_string(),
@@ -60,7 +60,7 @@ pub async fn test_state() -> Arc<AppState> {
 
     let mut config = test_config();
     config.server.listen = "127.0.0.1".to_string();
-    config.server.interface = "lo".to_string();
+    config.server.interfaces = vec!["lo".to_string()];
     config.database.path = ":memory:".to_string();
     config.firewall.table_name = "test".to_string();
     config.firewall.set_name = "test".to_string();
@@ -76,6 +76,7 @@ pub async fn test_state() -> Arc<AppState> {
         rate_limiter,
         admin_rate_limiter,
         portal_csrf_store: PortalCsrfStore::new(),
+        login_csrf_store: PortalCsrfStore::new(),
     })
 }
 

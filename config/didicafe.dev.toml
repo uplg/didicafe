@@ -1,7 +1,7 @@
 [server]
 listen = "127.0.0.1"
 port = 8080
-interface = "lo"
+interfaces = "lo"
 
 [database]
 path = "/Users/leonard/didicafe.dev.db"
@@ -13,7 +13,7 @@ password_hash = "$argon2id$v=19$m=16384,t=2,p=1$NythOGtiOGJkNzRQQ3dJNXVma2gwZz09
 [firewall]
 nft_path = "/usr/sbin/nft"
 table_name = "didicafe"
-set_name = "auth_macs"
+set_name = "auth_clients"
 
 [token]
 prefix = "DIDI"

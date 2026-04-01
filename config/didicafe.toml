@@ -1,7 +1,8 @@
 [server]
 listen = "10.10.0.1"
 port = 8080
-interface = "wlan0"
+# Dual-band: list both WiFi interfaces. Use "br-lan" if bridged.
+interfaces = ["wlan0", "wlan1"]
 
 [database]
 path = "/var/lib/didicafe/didicafe.db"
@@ -15,7 +16,7 @@ password_hash = "$argon2id$v=19$m=19456,t=2,p=1$UmHhUjxRtY3c7xV5M6xDaA$Vwia8Sfxf
 [firewall]
 nft_path = "/usr/sbin/nft"
 table_name = "didicafe"
-set_name = "auth_macs"
+set_name = "auth_clients"
 
 [token]
 prefix = "DIDI"

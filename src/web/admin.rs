@@ -77,6 +77,7 @@ fn clear_session_cookie() -> String {
 #[template(path = "admin/login.html")]
 struct LoginTemplate {
     error: Option<String>,
+    csrf_token: String,
 }
 
 #[derive(Template)]
@@ -109,6 +110,7 @@ struct AuditTemplate {
 pub struct LoginForm {
     username: String,
     password: String,
+    csrf_token: String,
 }
 
 #[derive(Deserialize)]
@@ -148,22 +150,47 @@ async fn redirect_to_login(
 }
 
 /// GET /admin/login — login page (no auth required)
-async fn login_page() -> Result<impl IntoResponse, AppError> {
-    render(&LoginTemplate { error: None })
+///
+/// CSRF protection: Synchronizer Token Pattern (server-side).
+/// Token stored in `login_csrf_store` keyed by client IP, embedded in form.
+async fn login_page(
+    State(state): State<Arc<AppState>>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+) -> Result<impl IntoResponse, AppError> {
+    let ip_key = addr.ip().to_string();
+    let csrf_token = state.login_csrf_store.generate(&ip_key);
+    render(&LoginTemplate { error: None, csrf_token })
 }
 
 /// POST /admin/login — validate credentials, create session, set cookie
+///
+/// CSRF protection: Synchronizer Token Pattern. The form-submitted `csrf_token`
+/// is validated against the server-side token stored for this client IP.
 async fn login_submit(
     State(state): State<Arc<AppState>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: axum::http::HeaderMap,
     Form(form): Form<LoginForm>,
 ) -> Result<impl IntoResponse, AppError> {
+    let ip_key = addr.ip().to_string();
+
+    // CSRF validation: Synchronizer Token Pattern (server-side, one-time use)
+    if !state.login_csrf_store.validate(&ip_key, &form.csrf_token) {
+        let csrf_token = state.login_csrf_store.generate(&ip_key);
+        let body = render(&LoginTemplate {
+            error: Some("admin.login.error.csrf".to_string()),
+            csrf_token,
+        })?;
+        return Ok(body.into_response());
+    }
+
     // Rate limit admin login attempts (OWASP: all auth endpoints)
     match state.admin_rate_limiter.check_and_record(addr.ip()) {
         RateLimitResult::Banned { retry_after_seconds } => {
+            let csrf_token = state.login_csrf_store.generate(&ip_key);
             let body = render(&LoginTemplate {
                 error: Some("admin.login.error.rate_limit".to_string()),
+                csrf_token,
             })?;
             return Ok((
                 StatusCode::TOO_MANY_REQUESTS,
@@ -174,8 +201,10 @@ async fn login_submit(
             ).into_response());
         }
         RateLimitResult::Throttled => {
+            let csrf_token = state.login_csrf_store.generate(&ip_key);
             let body = render(&LoginTemplate {
                 error: Some("admin.login.error.rate_limit".to_string()),
+                csrf_token,
             })?;
             return Ok((StatusCode::TOO_MANY_REQUESTS, body).into_response());
         }
@@ -184,8 +213,10 @@ async fn login_submit(
 
     // Input length limits: prevent Argon2 DoS with oversized passwords
     if form.username.len() > MAX_USERNAME_LEN || form.password.len() > MAX_PASSWORD_LEN {
+        let csrf_token = state.login_csrf_store.generate(&ip_key);
         let body = render(&LoginTemplate {
             error: Some("admin.login.error".to_string()),
+            csrf_token,
         })?;
         return Ok(body.into_response());
     }
@@ -214,8 +245,10 @@ async fn login_submit(
         // Log failed login attempt (OWASP audit trail) — truncate username to prevent log flooding
         let logged_user = &form.username[..form.username.len().min(MAX_USERNAME_LEN)];
         state.db.audit_log(logged_user, "login_failed", None, None, None).await.ok();
+        let csrf_token = state.login_csrf_store.generate(&ip_key);
         let body = render(&LoginTemplate {
             error: Some("admin.login.error".to_string()),
+            csrf_token,
         })?;
         Ok(body.into_response())
     }
@@ -308,8 +341,21 @@ async fn manage_submit(
         let count = form.count.unwrap_or(0);
         if count > 0 {
             let token_name = form.name.as_deref().unwrap_or_default();
+            if token_name.is_empty() {
+                return Err(AppError::BadRequest("admin.error.name_empty".to_string()));
+            }
             if token_name.len() > 200 {
                 return Err(AppError::BadRequest("admin.error.name_too_long_200".to_string()));
+            }
+            if count > 100 {
+                return Err(AppError::BadRequest("admin.error.count_max".to_string()));
+            }
+            // Verify plan exists and is active (consistent with API validation)
+            let plan = state.db.get_plan(plan_id).await
+                .map_err(AppError::Internal)?
+                .ok_or_else(|| AppError::NotFound(format!("plan {plan_id} not found")))?;
+            if !plan.active {
+                return Err(AppError::BadRequest("admin.error.plan_inactive".to_string()));
             }
             let codes = crate::services::token::generate_tokens(
                 &state.db,

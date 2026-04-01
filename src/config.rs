@@ -1,5 +1,42 @@
 use anyhow::{Context, Result};
+use serde::de;
 use serde::Deserialize;
+
+/// Deserializes a value that can be either a single string or a list of strings.
+/// This allows TOML config to use either:
+///   interfaces = "br-lan"           # single interface (bridge)
+///   interfaces = ["wlan0", "wlan1"] # multiple interfaces (dual-band)
+fn deserialize_string_or_vec<'de, D>(deserializer: D) -> std::result::Result<Vec<String>, D::Error>
+where
+    D: de::Deserializer<'de>,
+{
+    struct StringOrVec;
+
+    impl<'de> de::Visitor<'de> for StringOrVec {
+        type Value = Vec<String>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a string or a list of strings")
+        }
+
+        fn visit_str<E: de::Error>(self, value: &str) -> std::result::Result<Vec<String>, E> {
+            Ok(vec![value.to_owned()])
+        }
+
+        fn visit_seq<A: de::SeqAccess<'de>>(
+            self,
+            mut seq: A,
+        ) -> std::result::Result<Vec<String>, A::Error> {
+            let mut v = Vec::new();
+            while let Some(s) = seq.next_element::<String>()? {
+                v.push(s);
+            }
+            Ok(v)
+        }
+    }
+
+    deserializer.deserialize_any(StringOrVec)
+}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
@@ -16,7 +53,11 @@ pub struct Config {
 pub struct ServerConfig {
     pub listen: String,
     pub port: u16,
-    pub interface: String,
+    /// Network interface(s) for the captive portal WiFi.
+    /// Accepts a single string (e.g. "br-lan" for a bridge) or a list
+    /// (e.g. ["wlan0", "wlan1"] for dual-band without bridge).
+    #[serde(deserialize_with = "deserialize_string_or_vec")]
+    pub interfaces: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -109,9 +150,17 @@ impl Config {
             self.server.listen
         );
         anyhow::ensure!(
-            !self.server.interface.is_empty(),
-            "server.interface must not be empty"
+            !self.server.interfaces.is_empty(),
+            "server.interfaces must not be empty"
         );
+        for iface in &self.server.interfaces {
+            anyhow::ensure!(
+                !iface.is_empty() && iface.len() <= 15
+                    && iface.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'),
+                "server.interfaces: '{}' is not a valid Linux interface name (max 15 chars, alphanumeric/-/_)",
+                iface
+            );
+        }
 
         // Database
         anyhow::ensure!(

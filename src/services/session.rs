@@ -26,8 +26,8 @@ pub async fn create_session(
     let expires_str = expires_at.format("%Y-%m-%d %H:%M:%S").to_string();
     let timeout_secs = (duration_minutes * 60) as u64;
 
-    // 1. Add MAC to nftables with timeout (fail here = token not consumed)
-    state.firewall.authorize_mac(mac, timeout_secs).await?;
+    // 1. Add MAC+IP to nftables with timeout (fail here = token not consumed)
+    state.firewall.authorize_client(mac, ip, timeout_secs).await?;
 
     // 2. Create session record
     let session_id = state.db.create_session(token_id, mac, ip, &expires_str).await?;
@@ -50,7 +50,7 @@ pub async fn disconnect(state: &Arc<AppState>, session_id: i64) -> Result<()> {
     let session = state.db.get_session_by_id(session_id).await?
         .ok_or_else(|| anyhow::anyhow!("session {session_id} not found"))?;
 
-    state.firewall.deauthorize_mac(&session.mac_address).await?;
+    state.firewall.deauthorize_client(&session.mac_address, &session.ip_address).await?;
     state.db.disconnect_session(session_id).await?;
     info!(session_id, "session disconnected");
 
@@ -87,21 +87,21 @@ pub async fn migrate_session(
         anyhow::bail!("session for token {token_id} has already expired");
     }
 
-    // 1. Deauthorize old MAC (ignore errors — may already be gone after outage)
-    if let Err(e) = state.firewall.deauthorize_mac(&old_session.mac_address).await {
+    // 1. Deauthorize old MAC+IP (ignore errors — may already be gone after outage)
+    if let Err(e) = state.firewall.deauthorize_client(&old_session.mac_address, &old_session.ip_address).await {
         warn!(
             session_id = old_session.id,
             old_mac = %old_session.mac_address,
-            "deauthorize old MAC failed (may already be expired): {e}"
+            "deauthorize old client failed (may already be expired): {e}"
         );
     }
 
     // 2. Close old session
     state.db.disconnect_session(old_session.id).await?;
 
-    // 3. Authorize new MAC with remaining time
+    // 3. Authorize new MAC+IP with remaining time
     let timeout_secs = remaining as u64;
-    state.firewall.authorize_mac(new_mac, timeout_secs).await?;
+    state.firewall.authorize_client(new_mac, new_ip, timeout_secs).await?;
 
     // 4. Create new session with the original expiry time
     let session_id = state.db.create_session(
@@ -153,7 +153,7 @@ pub async fn cleanup_ticker(state: Arc<AppState>, shutdown: CancellationToken) {
                     let remaining = session.remaining_seconds();
                     if remaining <= -grace {
                         // Session has expired past the grace period — remove from firewall
-                        if let Err(e) = state.firewall.deauthorize_mac(&session.mac_address).await {
+                        if let Err(e) = state.firewall.deauthorize_client(&session.mac_address, &session.ip_address).await {
                             warn!(
                                 session_id = session.id,
                                 mac = %session.mac_address,

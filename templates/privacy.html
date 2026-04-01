@@ -1,75 +1,76 @@
 {% extends "base.html" %}
 
-{% block title %}DidiCafe - Confidentialité{% endblock %}
+{% block title %}DidiCafe - Fiainana manokana{% endblock %}
 
 {% block body %}
 <main class="container" role="main">
     <div class="card">
-        <h1 data-i18n="privacy.title">Confidentialité</h1>
+        <h1 data-i18n="privacy.title">Fiainana manokana</h1>
 
         <div class="text-sm">
             <p data-i18n="privacy.intro">
-                DidiCafe collecte uniquement les données strictement nécessaires au fonctionnement du service WiFi.
+                DidiCafe dia manangona angon-drakitra ilaina fotsiny ho an'ny fampiasana WiFi.
             </p>
 
-            <h2 data-i18n="privacy.controller_title">Responsable du traitement</h2>
+            <h2 data-i18n="privacy.controller_title">Tompon'andraikitry ny fitsaboana angon-drakitra</h2>
             <p data-i18n="privacy.controller">
-                Le responsable du traitement est l'exploitant du café DidiCafe.
-                Pour toute question relative à vos données personnelles, contactez le personnel du café.
+                Ny tompon'andraikitra dia DidiCafe, [adresse du café], [ville], Madagascar.
+                Raha misy fanontaniana momba ny angon-drakitrao manokana, mifandraisa amin'ny mpiasan'ny café.
             </p>
 
-            <h2 data-i18n="privacy.data_title">Données collectées</h2>
+            <h2 data-i18n="privacy.data_title">Angon-drakitra angonina</h2>
             <ul>
-                <li data-i18n="privacy.data_mac"><strong>Adresse MAC</strong> — identifiant unique de votre appareil, utilisé uniquement pour autoriser votre accès au réseau via le pare-feu. Supprimée automatiquement après expiration de votre session.</li>
-                <li data-i18n="privacy.data_ip"><strong>Adresse IP</strong> — adresse réseau attribuée à votre appareil, utilisée pour identifier votre connexion sur le réseau local.</li>
-                <li data-i18n="privacy.data_session"><strong>Durée de session</strong> — heure de début et d'expiration, pour gérer le temps d'accès que vous avez acheté.</li>
+                <li data-i18n="privacy.data_mac"><strong>Adiresy MAC</strong> — famantarana tokana ny fitaovanao, ampiasaina hanomezana alalana hiditra amin'ny tambajotra amin'ny alalan'ny pare-feu. Voafafa mandeha hoazy rehefa tapitra ny session.</li>
+                <li data-i18n="privacy.data_ip"><strong>Adiresy IP</strong> — adiresy tambajotra nomena ny fitaovanao, ampiasaina hamantarana ny fifandraisanao amin'ny tambajotra anatiny.</li>
+                <li data-i18n="privacy.data_session"><strong>Faharetan'ny session</strong> — ora nanombohana sy hifarana, ho an'ny fotoana novidina.</li>
             </ul>
 
-            <h2 data-i18n="privacy.data_not_title">Données NON collectées</h2>
+            <h2 data-i18n="privacy.data_not_title">Angon-drakitra TSY angonina</h2>
             <ul>
-                <li data-i18n="privacy.data_not_browsing"><strong>Historique de navigation</strong> — nous ne voyons ni ne stockons les sites que vous visitez.</li>
-                <li data-i18n="privacy.data_not_content"><strong>Contenu de vos communications</strong> — vos messages, emails et fichiers ne sont ni lus ni stockés.</li>
-                <li data-i18n="privacy.data_not_identity"><strong>Identité personnelle</strong> — aucun nom, numéro de téléphone ou pièce d'identité n'est demandé.</li>
+                <li data-i18n="privacy.data_not_browsing"><strong>Tantaran'ny navigasion</strong> — tsy hitantsika na voatahirizy ny tranonkala alehanao.</li>
+                <li data-i18n="privacy.data_not_content"><strong>Votoatin'ny fifandraisana</strong> — tsy vakina na voatahirizy ny hafatrao, mailaka ary rakitra.</li>
+                <li data-i18n="privacy.data_not_identity"><strong>Mombamomba anao</strong> — tsy mangataka anarana, laharana finday na taratasy maha-olona.</li>
             </ul>
 
-            <h2 data-i18n="privacy.legal_title">Base légale</h2>
+            <h2 data-i18n="privacy.legal_title">Fototra ara-dalàna</h2>
             <p data-i18n="privacy.legal">
-                Le traitement de vos données est fondé sur l'article 6(1)(b) du RGPD —
-                l'exécution d'un contrat. L'achat d'un code d'accès WiFi constitue un contrat
-                de prestation de service, et la collecte de votre adresse MAC est strictement
-                nécessaire à l'exécution de ce contrat (autorisation réseau).
+                Ny fitsaboana ny angon-drakitrao dia miorina amin'ny Loi n°2014-038 momba ny
+                fiarovana ny angon-drakitra manokana eto Madagasikara, indrindra ny andininy
+                faha-20 (fanekena amin'ny fifanarahana). Ny fividianana code WiFi dia fifanarahana
+                fanomezana tolotra, ary ny fanangonana ny adiresy MAC sy IP dia ilaina tanteraka
+                ho an'ny fanatanterahana izany fifanarahana izany (fahazoan-dalana amin'ny tambajotra).
             </p>
 
-            <h2 data-i18n="privacy.retention_title">Conservation</h2>
+            <h2 data-i18n="privacy.retention_title">Fitehirizana</h2>
             <p data-i18n="privacy.retention">
-                Les données de session sont supprimées automatiquement après 90 jours.
-                Les codes d'accès expirés ou révoqués sont également supprimés.
+                Ny angon-drakitra session dia voafafa mandeha hoazy rehefa afaka 90 andro.
+                Ny code tapitra na nesorina dia voafafa koa.
             </p>
 
-            <h2 data-i18n="privacy.rights_title">Vos droits</h2>
+            <h2 data-i18n="privacy.rights_title">Zo anao</h2>
             <p data-i18n="privacy.rights">
-                Conformément au RGPD, vous disposez des droits suivants :
+                Arakaraka ny Loi n°2014-038, manana ireto zo ireto ianao:
             </p>
             <ul>
-                <li data-i18n="privacy.right_access"><strong>Droit d'accès</strong> — demander quelles données vous concernant sont stockées.</li>
-                <li data-i18n="privacy.right_erasure"><strong>Droit à l'effacement</strong> — demander la suppression immédiate de vos données en contactant le personnel du café.</li>
-                <li data-i18n="privacy.right_object"><strong>Droit d'opposition</strong> — vous opposer au traitement de vos données.</li>
+                <li data-i18n="privacy.right_access"><strong>Zo hahalala</strong> — mangataka ny angon-drakitra voatahirizy momba anao.</li>
+                <li data-i18n="privacy.right_erasure"><strong>Zo hamafa</strong> — mangataka ny fanafoanana avy hatrany ny angon-drakitrao amin'ny mpiasan'ny café.</li>
+                <li data-i18n="privacy.right_object"><strong>Zo hanohitra</strong> — manohitra ny fitsaboana ny angon-drakitrao.</li>
             </ul>
             <p data-i18n="privacy.rights_contact">
-                Pour exercer ces droits, contactez le personnel du café avec l'adresse MAC de votre appareil.
+                Ho an'ny fampiharana ireo zo ireo, mifandraisa amin'ny mpiasan'ny café miaraka amin'ny adiresy MAC ny fitaovanao.
             </p>
             <p data-i18n="privacy.complaint">
-                Vous avez également le droit d'introduire une réclamation auprès de l'autorité de contrôle compétente.
+                Manana zo koa ianao hanolotra fitarainana amin'ny Commission Malgache de l'Informatique et des Libertés (CMIL).
             </p>
 
-            <h2 data-i18n="privacy.security_title">Sécurité</h2>
+            <h2 data-i18n="privacy.security_title">Fiarovana</h2>
             <p data-i18n="privacy.security">
-                Les données sont stockées localement sur le serveur du café. Aucune donnée n'est transmise à des services tiers ou à internet.
+                Voatahirizy eto an-toerana ny angon-drakitra amin'ny serveur-n'ny café. Tsy alefa any amin'ny antoko hafa na any amin'ny internet.
             </p>
         </div>
 
         <div class="mt-lg text-center">
-            <a href="/portal" class="btn btn--outline" data-i18n="privacy.back">Retour</a>
+            <a href="/portal" class="btn btn--outline" data-i18n="privacy.back">Hiverina</a>
         </div>
     </div>
 </main>

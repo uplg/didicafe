@@ -15,8 +15,9 @@
         </div>
 
         <p class="countdown-label" data-i18n="success.remaining">Fotoana sisa</p>
-        <div class="countdown" id="countdown" role="timer" aria-live="polite" aria-atomic="true">
-            {{ remaining_minutes }}:00
+        <div class="countdown" id="countdown" role="timer" aria-live="polite" aria-atomic="true"
+             data-remaining="{{ remaining_seconds }}">
+            {{ remaining_seconds / 60 }}:00
         </div>
 
         <p class="text-muted text-sm mt-lg" data-i18n="success.hint">
@@ -29,44 +30,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
-(function() {
-    "use strict";
-    var totalSeconds = {{ remaining_minutes }} * 60;
-    var el = document.getElementById("countdown");
-    if (!el || totalSeconds <= 0) return;
-
-    function pad(n) { return n < 10 ? "0" + n : "" + n; }
-
-    function render() {
-        if (totalSeconds <= 0) {
-            el.textContent = "0:00";
-            window.location.href = "/portal/expired";
-            return;
-        }
-        var m = Math.floor(totalSeconds / 60);
-        var s = totalSeconds % 60;
-        el.textContent = m + ":" + pad(s);
-        totalSeconds--;
-    }
-
-    // Sync with server every 60s to correct drift
-    function sync() {
-        fetch("/portal/status")
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                if (!data.connected) {
-                    window.location.href = "/portal/expired";
-                    return;
-                }
-                totalSeconds = data.remaining_seconds;
-            })
-            .catch(function() { /* ignore — client countdown continues */ });
-    }
-
-    render();
-    setInterval(render, 1000);
-    setInterval(sync, 60000);
-})();
-</script>
+<script src="/static/countdown.js"></script>
 {% endblock %}

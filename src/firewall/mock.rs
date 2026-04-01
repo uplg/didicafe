@@ -9,8 +9,8 @@ use super::Firewall;
 /// Recorded firewall operation for test assertions.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FirewallCall {
-    Authorize { mac: String, timeout_secs: u64 },
-    Deauthorize { mac: String },
+    Authorize { mac: String, ip: String, timeout_secs: u64 },
+    Deauthorize { mac: String, ip: String },
     InitRuleset,
 }
 
@@ -37,9 +37,10 @@ impl MockFirewall {
 }
 
 impl Firewall for MockFirewall {
-    fn authorize_mac(
+    fn authorize_client(
         &self,
         mac: &str,
+        ip: &str,
         timeout_secs: u64,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
         self.calls
@@ -47,20 +48,23 @@ impl Firewall for MockFirewall {
             .expect("mock lock poisoned")
             .push(FirewallCall::Authorize {
                 mac: mac.to_owned(),
+                ip: ip.to_owned(),
                 timeout_secs,
             });
         Box::pin(async { Ok(()) })
     }
 
-    fn deauthorize_mac(
+    fn deauthorize_client(
         &self,
         mac: &str,
+        ip: &str,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
         self.calls
             .lock()
             .expect("mock lock poisoned")
             .push(FirewallCall::Deauthorize {
                 mac: mac.to_owned(),
+                ip: ip.to_owned(),
             });
         Box::pin(async { Ok(()) })
     }
@@ -87,8 +91,8 @@ mod tests {
         let fw = MockFirewall::new();
 
         fw.init_ruleset().await.unwrap();
-        fw.authorize_mac("AA:BB:CC:DD:EE:FF", 3600).await.unwrap();
-        fw.deauthorize_mac("AA:BB:CC:DD:EE:FF").await.unwrap();
+        fw.authorize_client("AA:BB:CC:DD:EE:FF", "10.10.0.5", 3600).await.unwrap();
+        fw.deauthorize_client("AA:BB:CC:DD:EE:FF", "10.10.0.5").await.unwrap();
 
         let calls = fw.calls();
         assert_eq!(calls.len(), 3);
@@ -97,6 +101,7 @@ mod tests {
             calls[1],
             FirewallCall::Authorize {
                 mac: "AA:BB:CC:DD:EE:FF".to_string(),
+                ip: "10.10.0.5".to_string(),
                 timeout_secs: 3600,
             }
         );
@@ -104,6 +109,7 @@ mod tests {
             calls[2],
             FirewallCall::Deauthorize {
                 mac: "AA:BB:CC:DD:EE:FF".to_string(),
+                ip: "10.10.0.5".to_string(),
             }
         );
     }

@@ -94,7 +94,7 @@ async fn security_headers(request: Request, next: Next) -> Response {
     headers.insert(
         "Content-Security-Policy",
         HeaderValue::from_static(
-            "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
         ),
     );
     headers.insert(
@@ -133,6 +133,11 @@ async fn security_headers(request: Request, next: Next) -> Response {
 }
 
 pub fn router(state: Arc<AppState>) -> Router {
+    // Resolve static files directory relative to the config file's parent directory,
+    // or fall back to the executable's directory. This ensures static files are found
+    // regardless of the daemon's working directory (important for systemd/OpenRC services).
+    let static_dir = resolve_static_dir();
+
     Router::new()
         // Public captive portal routes
         .merge(portal::routes())
@@ -142,8 +147,8 @@ pub fn router(state: Arc<AppState>) -> Router {
         .merge(admin::routes())
         // REST API routes
         .merge(api::routes())
-        // Static files (CSS, favicon, etc.)
-        .nest_service("/static", ServeDir::new("static"))
+        // Static files (CSS, JS, favicon, etc.)
+        .nest_service("/static", ServeDir::new(static_dir))
         // Catch-all: any unmatched route redirects to the portal.
         // This handles CPD probes from less common OSes and any
         // stray HTTP requests DNATed by nftables.
@@ -151,4 +156,23 @@ pub fn router(state: Arc<AppState>) -> Router {
         // Security headers on all responses
         .layer(middleware::from_fn(security_headers))
         .with_state(state)
+}
+
+/// Resolve the `static/` directory to an absolute path.
+///
+/// Strategy: use the executable's directory as the base. On the embedded
+/// target, the binary lives in `/opt/didicafe/didicafe` and static files
+/// in `/opt/didicafe/static/`. In development, `cargo run` sets the CWD
+/// to the project root, so `./static/` works too.
+fn resolve_static_dir() -> std::path::PathBuf {
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(parent) = exe.parent()
+    {
+        let candidate = parent.join("static");
+        if candidate.is_dir() {
+            return candidate;
+        }
+    }
+    // Fallback: relative path (works when CWD is project root)
+    std::path::PathBuf::from("static")
 }

@@ -198,74 +198,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
-"use strict";
-function disconnectSession(id, btn) {
-    btn.disabled = true;
-    fetch("/api/sessions/" + id, { method: "DELETE", credentials: "same-origin" })
-        .then(function(res) {
-            if (res.ok) {
-                var row = document.getElementById("session-" + id);
-                if (row) row.remove();
-            }
-        });
-}
-
-function togglePlan(id, activate, btn) {
-    btn.disabled = true;
-    fetch("/api/plans/" + id + "/active", {
-        method: "PATCH",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ active: activate })
-    }).then(function(r) { if (r.ok) window.location.reload(); });
-}
-
-function editPlanFromEl(el) {
-    editPlan(
-        el.getAttribute("data-plan-id"),
-        el.getAttribute("data-plan-name"),
-        el.getAttribute("data-plan-duration"),
-        el.getAttribute("data-plan-price")
-    );
-}
-
-function editPlan(id, name, duration, price) {
-    document.getElementById("edit-id").value = id;
-    document.getElementById("edit-name").value = name;
-    document.getElementById("edit-duration").value = duration;
-    document.getElementById("edit-price").value = price;
-    document.getElementById("edit-modal").open = true;
-}
-
-function closeEditModal() {
-    document.getElementById("edit-modal").open = false;
-}
-
-function saveEditPlan() {
-    var id = document.getElementById("edit-id").value;
-    var name = document.getElementById("edit-name").value;
-    var duration = parseInt(document.getElementById("edit-duration").value) || 60;
-    var price = parseInt(document.getElementById("edit-price").value) || 0;
-    
-    fetch("/api/plans/" + id, {
-        method: "PUT",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-            name: name, 
-            duration_minutes: duration, 
-            price_ariary: price,
-            active: true
-        })
-    }).then(function(r) { 
-        if (r.ok) {
-            closeEditModal();
-            window.location.reload();
-        }
-    });
-}
-</script>
+<script src="/static/manage.js"></script>
 
 <!-- Edit Plan Modal -->
 <dialog id="edit-modal" class="modal">

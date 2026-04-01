@@ -11,8 +11,9 @@ use super::Firewall;
 
 /// Controls nftables rules via the `nft` CLI.
 ///
-/// Manages the `auth_macs` set: adding MACs with timeouts on auth,
-/// and removing them on disconnect/expiry.
+/// Manages the `auth_clients` set: adding (MAC, IP) pairs with timeouts on auth,
+/// and removing them on disconnect/expiry. Uses a concatenated set type
+/// (`ether_addr . ipv4_addr`) so a spoofed MAC from a different IP won't match.
 pub struct NftablesController {
     nft_path: String,
     table_name: String,
@@ -46,47 +47,51 @@ impl NftablesController {
 }
 
 impl Firewall for NftablesController {
-    fn authorize_mac(
+    fn authorize_client(
         &self,
         mac: &str,
+        ip: &str,
         timeout_secs: u64,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
         let mac = mac.to_owned();
+        let ip = ip.to_owned();
         Box::pin(async move {
             validate_mac(&mac)
                 .with_context(|| format!("refusing to authorize invalid MAC: {mac}"))?;
 
-            let element = format!("{} timeout {}s", mac, timeout_secs);
+            let element = format!("{} . {} timeout {}s", mac, ip, timeout_secs);
             let cmd = format!(
                 "add element inet {} {} {{ {} }}",
                 self.table_name, self.set_name, element
             );
 
-            debug!(%mac, timeout_secs, "authorizing MAC in nftables");
+            debug!(%mac, %ip, timeout_secs, "authorizing client in nftables");
             self.run_nft(&cmd)
                 .await
-                .with_context(|| format!("failed to authorize MAC {mac}"))
+                .with_context(|| format!("failed to authorize client {mac}/{ip}"))
         })
     }
 
-    fn deauthorize_mac(
+    fn deauthorize_client(
         &self,
         mac: &str,
+        ip: &str,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
         let mac = mac.to_owned();
+        let ip = ip.to_owned();
         Box::pin(async move {
             validate_mac(&mac)
                 .with_context(|| format!("refusing to deauthorize invalid MAC: {mac}"))?;
 
             let cmd = format!(
-                "delete element inet {} {} {{ {} }}",
-                self.table_name, self.set_name, mac
+                "delete element inet {} {} {{ {} . {} }}",
+                self.table_name, self.set_name, mac, ip
             );
 
-            debug!(%mac, "deauthorizing MAC from nftables");
+            debug!(%mac, %ip, "deauthorizing client from nftables");
             // Ignore errors if the element doesn't exist (already expired)
             if let Err(e) = self.run_nft(&cmd).await {
-                warn!(%mac, "deauthorize failed (may already be expired): {e}");
+                warn!(%mac, %ip, "deauthorize failed (may already be expired): {e}");
             }
             Ok(())
         })
@@ -94,21 +99,23 @@ impl Firewall for NftablesController {
 
     fn init_ruleset(&self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
         Box::pin(async move {
-            // Create table if not exists — only ignore "already exists" errors
-            if let Err(e) = self.run_nft(&format!("add table inet {}", self.table_name)).await {
-                let err_msg = e.to_string();
-                if !err_msg.contains("already") {
+            // Create table — ignore "already exists" via exit code
+            let table_cmd = format!("add table inet {}", self.table_name);
+            if let Err(e) = self.run_nft(&table_cmd).await {
+                let err_msg = e.to_string().to_lowercase();
+                if !err_msg.contains("exist") {
                     return Err(e);
                 }
             }
 
-            // Create authenticated MAC set with timeout support
-            if let Err(e) = self.run_nft(&format!(
-                "add set inet {} {} {{ type ether_addr; flags timeout; }}",
+            // Create authenticated client set (MAC+IP concatenation) with timeout support
+            let set_cmd = format!(
+                "add set inet {} {} {{ type ether_addr . ipv4_addr; flags timeout; }}",
                 self.table_name, self.set_name
-            )).await {
-                let err_msg = e.to_string();
-                if !err_msg.contains("already") {
+            );
+            if let Err(e) = self.run_nft(&set_cmd).await {
+                let err_msg = e.to_string().to_lowercase();
+                if !err_msg.contains("exist") {
                     return Err(e);
                 }
             }
@@ -131,11 +138,11 @@ mod tests {
         let config = FirewallConfig {
             nft_path: "/usr/sbin/nft".to_string(),
             table_name: "didicafe".to_string(),
-            set_name: "auth_macs".to_string(),
+            set_name: "auth_clients".to_string(),
         };
         let controller = NftablesController::new(&config);
         assert_eq!(controller.nft_path, "/usr/sbin/nft");
         assert_eq!(controller.table_name, "didicafe");
-        assert_eq!(controller.set_name, "auth_macs");
+        assert_eq!(controller.set_name, "auth_clients");
     }
 }

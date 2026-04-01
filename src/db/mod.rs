@@ -99,6 +99,10 @@ impl Database {
             .execute(&self.pool)
             .await
             .context("failed to run migration 002")?;
+        sqlx::query(include_str!("../../migrations/003_session_token_index.sql"))
+            .execute(&self.pool)
+            .await
+            .context("failed to run migration 003")?;
         Ok(())
     }
 

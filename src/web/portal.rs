@@ -28,7 +28,7 @@ struct PortalTemplate {
 #[derive(Template)]
 #[template(path = "success.html")]
 struct SuccessTemplate {
-    remaining_minutes: i64,
+    remaining_seconds: i64,
 }
 
 #[derive(Template)]
@@ -171,9 +171,9 @@ async fn success_page(
     State(state): State<Arc<AppState>>,
     client: ClientInfo,
 ) -> Result<impl IntoResponse, AppError> {
-    let remaining_minutes = get_remaining_minutes(&state, &client.mac).await?;
-    match remaining_minutes {
-        Some(minutes) => Ok(render(&SuccessTemplate { remaining_minutes: minutes })?.into_response()),
+    let remaining_seconds = get_remaining_seconds(&state, &client.mac).await?;
+    match remaining_seconds {
+        Some(secs) => Ok(render(&SuccessTemplate { remaining_seconds: secs })?.into_response()),
         None => Ok(Redirect::to("/portal").into_response()),
     }
 }
@@ -227,17 +227,20 @@ async fn privacy_page() -> Result<impl IntoResponse, AppError> {
 
 // -- Shared helpers --
 
-/// Get remaining minutes for a session by MAC address.
+/// Get remaining seconds for a session by MAC address.
 /// Returns `None` if no active session exists.
-async fn get_remaining_minutes(state: &Arc<AppState>, mac: &str) -> Result<Option<i64>, AppError> {
+async fn get_remaining_seconds(state: &Arc<AppState>, mac: &str) -> Result<Option<i64>, AppError> {
     let session = state.db.get_session_by_mac(mac).await
         .map_err(AppError::Internal)?;
 
     match session {
         Some(s) => {
             let secs = s.remaining_seconds();
-            // Round up so the user never sees "0 minutes" when there's still time
-            Ok(Some((secs + 59) / 60))
+            if secs > 0 {
+                Ok(Some(secs))
+            } else {
+                Ok(None)
+            }
         }
         None => Ok(None),
     }

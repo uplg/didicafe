@@ -13,6 +13,7 @@
         {% endif %}
 
         <form method="post" action="/admin/login" aria-label="Admin login">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="form-group">
                 <label for="username" data-i18n="admin.login.username">Anarana</label>
                 <input

@@ -36,6 +36,8 @@ pub struct AppState {
     pub rate_limiter: services::rate_limit::RateLimiter,
     pub admin_rate_limiter: services::rate_limit::RateLimiter,
     pub portal_csrf_store: services::csrf::PortalCsrfStore,
+    /// CSRF store for the login form (Synchronizer Token Pattern, keyed by client IP).
+    pub login_csrf_store: services::csrf::PortalCsrfStore,
 }
 
 #[tokio::main]
@@ -88,8 +90,8 @@ async fn main() -> Result<()> {
         let remaining = session.remaining_seconds();
         if remaining > grace {
             // Session still valid - restore to firewall
-            if let Err(e) = fw.authorize_mac(&session.mac_address, remaining as u64).await {
-                tracing::warn!(mac = %session.mac_address, "failed to restore session: {e}");
+            if let Err(e) = fw.authorize_client(&session.mac_address, &session.ip_address, remaining as u64).await {
+                tracing::warn!(mac = %session.mac_address, ip = %session.ip_address, "failed to restore session: {e}");
             } else {
                 restored_count += 1;
             }
@@ -127,6 +129,7 @@ async fn main() -> Result<()> {
     let rate_limiter = services::rate_limit::RateLimiter::new(&config.rate_limit);
     let admin_rate_limiter = services::rate_limit::RateLimiter::new(&config.rate_limit);
     let portal_csrf_store = services::csrf::PortalCsrfStore::new();
+    let login_csrf_store = services::csrf::PortalCsrfStore::new();
 
     let state = Arc::new(AppState {
         db: database,
@@ -136,6 +139,7 @@ async fn main() -> Result<()> {
         rate_limiter,
         admin_rate_limiter,
         portal_csrf_store,
+        login_csrf_store,
     });
 
     // Cancellation token for graceful shutdown
