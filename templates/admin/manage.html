@@ -7,7 +7,8 @@
     <h1 data-i18n="admin.manage.title">Gestion</h1>
 
     {% if let Some(msg) = message %}
-    <div class="alert alert--success mt-md">{{ msg }}</div>
+    {% let args_json = msg.args_json() %}
+    <div class="alert alert--success mt-md" data-i18n="{{ msg.key }}"{% if !args_json.is_empty() %} data-i18n-args="{{ args_json }}"{% endif %}>{{ msg.key }}</div>
     {% endif %}
 
     <!-- Quick Stats -->

@@ -1,8 +1,12 @@
+/// Production firewall implementation (nftables CLI).
+/// Compiled in release builds and tests (for unit testing the controller itself).
+#[cfg(any(test, not(debug_assertions)))]
 mod nftables;
 
 #[cfg(any(test, debug_assertions))]
 mod mock;
 
+#[cfg(not(debug_assertions))]
 pub use nftables::NftablesController;
 
 #[cfg(any(test, debug_assertions))]

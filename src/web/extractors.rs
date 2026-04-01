@@ -9,6 +9,7 @@ use tracing::warn;
 
 use crate::AppState;
 use crate::net::arp;
+use crate::net::mac::is_valid_mac;
 use super::error::AppError;
 
 /// Cookie name for admin sessions.
@@ -141,43 +142,15 @@ fn mac_lookup_result(ip: IpAddr, mac: Option<String>) -> Result<String, AppError
 fn validate_mac_or_err(ip: IpAddr, mac: Option<String>) -> Result<String, AppError> {
     let mac = mac.ok_or_else(|| {
         warn!(%ip, "MAC lookup failed: client IP not found in ARP table");
-        AppError::BadRequest(
-            "Unable to identify your device. Please ensure you are connected via WiFi.".to_string(),
-        )
+        AppError::BadRequest("portal.error.device".to_string())
     })?;
 
     if !is_valid_mac(&mac) {
         warn!(%ip, %mac, "MAC address has invalid format");
-        return Err(AppError::BadRequest(
-            "Unable to identify your device. Please ensure you are connected via WiFi.".to_string(),
-        ));
+        return Err(AppError::BadRequest("portal.error.device".to_string()));
     }
 
     Ok(mac)
-}
-
-fn is_valid_mac(mac: &str) -> bool {
-    let bytes = mac.as_bytes();
-    if bytes.len() != 17 {
-        return false;
-    }
-    for (i, &b) in bytes.iter().enumerate() {
-        if i % 3 == 2 {
-            if b != b':' {
-                return false;
-            }
-        } else if !b.is_ascii_hexdigit() {
-            return false;
-        } else if b.is_ascii_alphabetic() && !b.is_ascii_lowercase() {
-            // Only reject uppercase letters, not digits
-            return false;
-        }
-    }
-    // Reject null and broadcast MACs
-    if mac == "00:00:00:00:00:00" || mac == "ff:ff:ff:ff:ff:ff" {
-        return false;
-    }
-    true
 }
 
 #[cfg(test)]
@@ -241,19 +214,5 @@ mod tests {
             extract_cookie(&headers, "didicafe"),
             Some("evil".to_string())
         );
-    }
-
-    #[test]
-    fn test_is_valid_mac() {
-        assert!(is_valid_mac("aa:bb:cc:dd:ee:ff"));
-        assert!(is_valid_mac("02:00:00:00:00:01"));
-        assert!(!is_valid_mac("AA:BB:CC:DD:EE:FF")); // uppercase
-        assert!(!is_valid_mac("aa:bb:cc:dd:ee")); // too short
-        assert!(!is_valid_mac("aa:bb:cc:dd:ee:ff:00")); // too long
-        assert!(!is_valid_mac("aa-bb-cc-dd-ee-ff")); // dashes
-        assert!(!is_valid_mac("not-a-mac"));
-        assert!(!is_valid_mac(""));
-        assert!(!is_valid_mac("00:00:00:00:00:00")); // null MAC
-        assert!(!is_valid_mac("ff:ff:ff:ff:ff:ff")); // broadcast MAC
     }
 }

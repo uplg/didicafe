@@ -61,11 +61,16 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    let fw: Arc<dyn firewall::Firewall> = if cfg!(debug_assertions) {
-        info!("dev mode: using mock firewall");
-        Arc::new(firewall::MockFirewall::new())
-    } else {
-        Arc::new(firewall::NftablesController::new(&config.firewall))
+    let fw: Arc<dyn firewall::Firewall> = {
+        #[cfg(debug_assertions)]
+        {
+            info!("dev mode: using mock firewall");
+            Arc::new(firewall::MockFirewall::new())
+        }
+        #[cfg(not(debug_assertions))]
+        {
+            Arc::new(firewall::NftablesController::new(&config.firewall))
+        }
     };
 
     // Initialize nftables table and set (idempotent)

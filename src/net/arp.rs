@@ -44,7 +44,7 @@ pub async fn lookup_mac(ip: IpAddr) -> Option<String> {
         }
 
         debug!(%ip, "MAC lookup failed: IP not found in ARP table");
-        return None;
+        None
     }
 }
 

@@ -66,10 +66,17 @@ pub struct SessionConfig {
     /// Days to retain expired/disconnected sessions before hard deletion.
     #[serde(default = "default_session_retention_days")]
     pub retention_days: i64,
+    /// Days to retain audit log entries before hard deletion.
+    #[serde(default = "default_audit_retention_days")]
+    pub audit_retention_days: i64,
 }
 
 fn default_session_retention_days() -> i64 {
     90
+}
+
+fn default_audit_retention_days() -> i64 {
+    365
 }
 
 impl Config {
@@ -200,6 +207,11 @@ impl Config {
             self.session.retention_days > 0,
             "session.retention_days must be > 0, got {}",
             self.session.retention_days
+        );
+        anyhow::ensure!(
+            self.session.audit_retention_days > 0,
+            "session.audit_retention_days must be > 0, got {}",
+            self.session.audit_retention_days
         );
 
         Ok(())

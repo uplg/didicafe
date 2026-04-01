@@ -86,7 +86,7 @@ async fn portal_auth(
     // CSRF validation: Synchronizer Token Pattern (server-side)
     if !state.portal_csrf_store.validate(&client.mac, &form.csrf_token) {
         return Ok(render(&PortalTemplate {
-            error: Some("Invalid request. Please try again.".to_string()),
+            error: Some("portal.error.csrf".to_string()),
             csrf_token: state.portal_csrf_store.generate(&client.mac),
         })?.into_response());
     }
@@ -107,9 +107,9 @@ async fn portal_auth(
     let code = form.token.trim().to_uppercase();
 
     // Validate token format before any DB lookup (defense-in-depth)
-    if let Err(msg) = services::token::validate_token_format(&state.config.token, &code) {
+    if let Err(_msg) = services::token::validate_token_format(&state.config.token, &code) {
         return Ok(render(&PortalTemplate {
-            error: Some(msg),
+            error: Some("portal.error.invalid".to_string()),
             csrf_token: state.portal_csrf_store.generate(&client.mac),
         })?.into_response());
     }
@@ -132,7 +132,7 @@ async fn portal_auth(
                 Err(e) => {
                     tracing::error!("session creation failed: {e}");
                     Ok(render(&PortalTemplate {
-                        error: Some("Internal error. Please try again.".to_string()),
+                        error: Some("portal.error.internal".to_string()),
                         csrf_token: state.portal_csrf_store.generate(&client.mac),
                     })?.into_response())
                 }
@@ -151,7 +151,7 @@ async fn portal_auth(
                 Err(e) => {
                     tracing::error!("session migration failed: {e}");
                     Ok(render(&PortalTemplate {
-                        error: Some("Session expired. Please purchase a new token.".to_string()),
+                        error: Some("portal.error.expired".to_string()),
                         csrf_token: state.portal_csrf_store.generate(&client.mac),
                     })?.into_response())
                 }
@@ -159,7 +159,7 @@ async fn portal_auth(
         }
         TokenLookup::Invalid => {
             Ok(render(&PortalTemplate {
-                error: Some("Invalid or already used token.".to_string()),
+                error: Some("portal.error.invalid".to_string()),
                 csrf_token: state.portal_csrf_store.generate(&client.mac),
             })?.into_response())
         }
@@ -287,7 +287,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK); // Returns form with error
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let html = String::from_utf8_lossy(&body);
-        assert!(html.contains("Invalid token format"));
+        assert!(html.contains("portal.error.invalid"));
     }
 
     #[tokio::test]
@@ -304,7 +304,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let html = String::from_utf8_lossy(&body);
-        assert!(html.contains("Invalid or already used token"));
+        assert!(html.contains("portal.error.invalid"));
     }
 
     #[tokio::test]
@@ -334,7 +334,7 @@ mod tests {
 
         // Verify: token is now active
         let token = state.db.get_token_by_code("DIDI-ABCD-EF23").await.unwrap().unwrap();
-        assert_eq!(token.status, "active");
+        assert_eq!(token.status, crate::db::TokenStatus::Active);
 
         // Verify: session was created
         let sessions = state.db.get_active_sessions().await.unwrap();
@@ -363,7 +363,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let html = String::from_utf8_lossy(&body);
-        assert!(html.contains("Invalid request"));
+        assert!(html.contains("portal.error.csrf"));
     }
 
     #[tokio::test]
@@ -380,7 +380,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let html = String::from_utf8_lossy(&body);
-        assert!(html.contains("Invalid request"));
+        assert!(html.contains("portal.error.csrf"));
     }
 
     #[tokio::test]
@@ -462,7 +462,7 @@ mod tests {
 
         // Verify: token is still active (not consumed twice)
         let token = state.db.get_token_by_code("DIDI-ABCD-EF23").await.unwrap().unwrap();
-        assert_eq!(token.status, "active");
+        assert_eq!(token.status, crate::db::TokenStatus::Active);
 
         // Verify: firewall was called (authorize old + deauthorize old + authorize new)
         let fw = state.firewall.as_ref();
@@ -494,6 +494,6 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let html = String::from_utf8_lossy(&body);
-        assert!(html.contains("Invalid or already used token"));
+        assert!(html.contains("portal.error.invalid"));
     }
 }

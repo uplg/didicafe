@@ -6,39 +6,8 @@ use tokio::process::Command;
 use tracing::{debug, warn};
 
 use crate::config::FirewallConfig;
+use crate::net::mac::validate_mac;
 use super::Firewall;
-
-/// Validate MAC address format before interpolation into nft commands.
-///
-/// Defense-in-depth: even though the web extractor validates MACs on the request
-/// path, the firewall is also called from the session restore path at startup
-/// (reading MACs directly from the database). A corrupted DB entry must not
-/// enable nft command injection.
-///
-/// Accepts only lowercase hex-colon format: `xx:xx:xx:xx:xx:xx` (exactly 17 chars).
-/// Rejects null (00:00:00:00:00:00) and broadcast (ff:ff:ff:ff:ff:ff) MACs.
-fn validate_mac(mac: &str) -> Result<()> {
-    let bytes = mac.as_bytes();
-    if bytes.len() != 17 {
-        anyhow::bail!("invalid MAC length: {}", mac.len());
-    }
-    for (i, &b) in bytes.iter().enumerate() {
-        if i % 3 == 2 {
-            if b != b':' {
-                anyhow::bail!("invalid MAC separator at position {i}");
-            }
-        } else if !b.is_ascii_hexdigit() || (b.is_ascii_alphabetic() && !b.is_ascii_lowercase()) {
-            anyhow::bail!("invalid MAC character at position {i}");
-        }
-    }
-    if mac == "00:00:00:00:00:00" {
-        anyhow::bail!("null MAC address rejected");
-    }
-    if mac == "ff:ff:ff:ff:ff:ff" {
-        anyhow::bail!("broadcast MAC address rejected");
-    }
-    Ok(())
-}
 
 /// Controls nftables rules via the `nft` CLI.
 ///
@@ -158,32 +127,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_validate_mac_valid() {
-        assert!(validate_mac("aa:bb:cc:dd:ee:ff").is_ok());
-        assert!(validate_mac("02:00:00:00:00:01").is_ok());
-        assert!(validate_mac("12:34:56:78:9a:bc").is_ok());
-    }
-
-    #[test]
-    fn test_validate_mac_rejects_uppercase() {
-        assert!(validate_mac("AA:BB:CC:DD:EE:FF").is_err());
-    }
-
-    #[test]
-    fn test_validate_mac_rejects_null() {
-        assert!(validate_mac("00:00:00:00:00:00").is_err());
-    }
-
-    #[test]
-    fn test_validate_mac_rejects_broadcast() {
-        assert!(validate_mac("ff:ff:ff:ff:ff:ff").is_err());
-    }
-
-    #[test]
-    fn test_validate_mac_rejects_injection() {
-        assert!(validate_mac("aa:bb:cc:dd:ee:ff } ; add rule inet didicafe input accept ; #").is_err());
-        assert!(validate_mac("aa:bb:cc:dd:ee:f").is_err());
-        assert!(validate_mac("not-a-mac").is_err());
-        assert!(validate_mac("").is_err());
+    fn test_nftables_controller_creation() {
+        let config = FirewallConfig {
+            nft_path: "/usr/sbin/nft".to_string(),
+            table_name: "didicafe".to_string(),
+            set_name: "auth_macs".to_string(),
+        };
+        let controller = NftablesController::new(&config);
+        assert_eq!(controller.nft_path, "/usr/sbin/nft");
+        assert_eq!(controller.table_name, "didicafe");
+        assert_eq!(controller.set_name, "auth_macs");
     }
 }

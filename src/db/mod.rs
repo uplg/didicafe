@@ -481,7 +481,7 @@ mod tests {
         assert!(token_id > 0);
 
         let token = db.get_token_by_code("DIDI-ABCD-EF23").await.unwrap().unwrap();
-        assert_eq!(token.status, "unused");
+        assert_eq!(token.status, TokenStatus::Unused);
         assert_eq!(token.duration_minutes, 60);
 
         let token2 = db.get_token_by_id(token_id).await.unwrap().unwrap();
@@ -496,12 +496,12 @@ mod tests {
 
         db.redeem_token(token_id, "2026-12-31 23:59:59").await.unwrap();
         let token = db.get_token_by_id(token_id).await.unwrap().unwrap();
-        assert_eq!(token.status, "active");
+        assert_eq!(token.status, TokenStatus::Active);
         assert!(token.redeemed_at.is_some());
 
         db.expire_token(token_id).await.unwrap();
         let token = db.get_token_by_id(token_id).await.unwrap().unwrap();
-        assert_eq!(token.status, "expired");
+        assert_eq!(token.status, TokenStatus::Expired);
     }
 
     #[tokio::test]
@@ -512,7 +512,7 @@ mod tests {
 
         db.revoke_token(token_id).await.unwrap();
         let token = db.get_token_by_id(token_id).await.unwrap().unwrap();
-        assert_eq!(token.status, "revoked");
+        assert_eq!(token.status, TokenStatus::Revoked);
     }
 
     #[tokio::test]
@@ -552,7 +552,7 @@ mod tests {
 
         let session = db.get_session_by_mac("AA:BB:CC:DD:EE:FF").await.unwrap().unwrap();
         assert_eq!(session.ip_address, "10.10.0.5");
-        assert_eq!(session.status, "active");
+        assert_eq!(session.status, SessionStatus::Active);
     }
 
     #[tokio::test]
@@ -604,7 +604,7 @@ mod tests {
             ip_address: "10.0.0.1".to_string(),
             started_at: "2026-01-01 00:00:00".to_string(),
             expires_at: "2099-12-31 23:59:59".to_string(),
-            status: "active".to_string(),
+            status: SessionStatus::Active,
             token_code: None,
             token_name: None,
         };
@@ -622,7 +622,7 @@ mod tests {
             ip_address: "10.0.0.1".to_string(),
             started_at: "2020-01-01 00:00:00".to_string(),
             expires_at: "2020-01-01 01:00:00".to_string(),
-            status: "active".to_string(),
+            status: SessionStatus::Active,
         };
         assert_eq!(session.remaining_seconds(), 0);
     }
@@ -636,7 +636,7 @@ mod tests {
             ip_address: String::new(),
             started_at: String::new(),
             expires_at: "not-a-date".to_string(),
-            status: "active".to_string(),
+            status: SessionStatus::Active,
             token_code: None,
             token_name: None,
         };

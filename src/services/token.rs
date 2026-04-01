@@ -101,10 +101,10 @@ pub async fn validate_token(db: &Database, code: &str) -> Result<TokenLookup> {
     let token = db.get_token_by_code(code).await?;
 
     match token {
-        Some(t) if t.token_status() == Some(crate::db::TokenStatus::Unused) => {
+        Some(t) if t.status == crate::db::TokenStatus::Unused => {
             Ok(TokenLookup::Unused(t))
         }
-        Some(t) if t.token_status() == Some(crate::db::TokenStatus::Active) => {
+        Some(t) if t.status == crate::db::TokenStatus::Active => {
             Ok(TokenLookup::Active(t))
         }
         _ => Ok(TokenLookup::Invalid),

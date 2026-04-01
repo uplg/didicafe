@@ -48,6 +48,7 @@ pub fn test_config() -> Config {
             cleanup_interval_seconds: 30,
             grace_period_seconds: 10,
             retention_days: 90,
+            audit_retention_days: 365,
         },
     }
 }

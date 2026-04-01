@@ -202,7 +202,7 @@ async fn revoke_token(
         .map_err(AppError::Internal)?
         .ok_or_else(|| AppError::NotFound(format!("token {id} not found")))?;
 
-    if token.token_status() != Some(crate::db::TokenStatus::Unused) {
+    if token.status != crate::db::TokenStatus::Unused {
         return Err(AppError::BadRequest(format!(
             "cannot revoke token with status '{}'", token.status
         )));

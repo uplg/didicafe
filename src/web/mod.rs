@@ -7,6 +7,7 @@ pub mod cpd;
 
 pub use error::AppError;
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use axum::{Router, response::Redirect, routing::any};
 use axum::middleware::{self, Next};
@@ -16,6 +17,53 @@ use axum::extract::Request;
 use tower_http::services::ServeDir;
 
 use crate::AppState;
+
+/// An i18n message with a key and optional named interpolation arguments.
+///
+/// Used by templates to render `data-i18n` and `data-i18n-args` attributes.
+/// The frontend's `i18n.js` reads these attributes and resolves the translated
+/// string with `{{placeholder}}` replacement.
+///
+/// Example:
+///   key = "admin.manage.tokens_generated", args = { "count": "5" }
+///   Template renders: <div data-i18n="admin.manage.tokens_generated" data-i18n-args='{"count":"5"}'>
+///   Frontend resolves: "5 code(s) naorina" (in Malagasy)
+#[derive(Debug, Clone)]
+pub struct I18nMessage {
+    /// Translation key (e.g. "admin.manage.plan_created")
+    pub key: String,
+    /// Named interpolation arguments (e.g. {"name": "WiFi 1h", "count": "5"}).
+    /// Uses BTreeMap for deterministic JSON output in templates.
+    pub args: BTreeMap<String, String>,
+}
+
+impl I18nMessage {
+    /// Create a message with interpolation arguments from key-value pairs.
+    pub fn with_args(key: impl Into<String>, args: impl IntoIterator<Item = (&'static str, String)>) -> Self {
+        Self {
+            key: key.into(),
+            args: args.into_iter().map(|(k, v)| (k.to_string(), v)).collect(),
+        }
+    }
+
+    /// Render the `data-i18n-args` attribute value as a JSON string.
+    /// Returns an empty string if there are no args (template can skip the attribute).
+    pub fn args_json(&self) -> String {
+        if self.args.is_empty() {
+            return String::new();
+        }
+        // Manual JSON construction to avoid serde dependency for this small case.
+        // BTreeMap iteration order is deterministic (sorted by key).
+        let pairs: Vec<String> = self.args.iter()
+            .map(|(k, v)| {
+                // Escape double quotes and backslashes in values for JSON safety
+                let escaped = v.replace('\\', "\\\\").replace('"', "\\\"");
+                format!("\"{}\":\"{}\"", k, escaped)
+            })
+            .collect();
+        format!("{{{}}}", pairs.join(","))
+    }
+}
 
 /// Security headers middleware (OWASP best practices).
 ///
@@ -30,6 +78,7 @@ use crate::AppState;
 async fn security_headers(request: Request, next: Next) -> Response {
     let is_sensitive = request.uri().path().starts_with("/admin")
         || request.uri().path().starts_with("/api");
+    let is_static = request.uri().path().starts_with("/static");
 
     let mut response = next.run(request).await;
     let headers = response.headers_mut();
@@ -70,6 +119,13 @@ async fn security_headers(request: Request, next: Next) -> Response {
         headers.insert(
             "Pragma",
             HeaderValue::from_static("no-cache"),
+        );
+    } else if is_static {
+        // Cache static assets (CSS, JS, images) for 1 hour.
+        // These rarely change and caching reduces load on the embedded router.
+        headers.insert(
+            "Cache-Control",
+            HeaderValue::from_static("public, max-age=3600"),
         );
     }
 

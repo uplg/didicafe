@@ -9,7 +9,7 @@
         {% include "../partials/lang_switcher.html" %}
 
         {% if let Some(err) = error %}
-        <div class="alert alert--error" role="alert" data-i18n="admin.login.error">{{ err }}</div>
+        <div class="alert alert--error" role="alert" data-i18n="{{ err }}">{{ err }}</div>
         {% endif %}
 
         <form method="post" action="/admin/login" aria-label="Admin login">

@@ -27,6 +27,8 @@ const TRANSLATIONS = {
     "portal.error.rate_limit": "Andraso kely azafady, efa be loatra ny fanandramana.",
     "portal.error.device": "Tsy hita ny fitaovanao. Hamarino fa mifandray amin'ny WiFi ianao.",
     "portal.error.internal": "Nisy olana. Andramo indray azafady.",
+    "portal.error.csrf": "Fangatahana tsy mety. Andramo indray azafady.",
+    "portal.error.expired": "Tapitra ny session. Mividia code vaovao azafady.",
 
     // -- Success --
     "success.title": "Tafiditra!",
@@ -54,6 +56,7 @@ const TRANSLATIONS = {
     "admin.login.password": "Teny miafina",
     "admin.login.submit": "Hiditra",
     "admin.login.error": "Anarana na teny miafina diso.",
+    "admin.login.error.rate_limit": "Andraso kely azafady, efa be loatra ny fanandramana.",
 
     // -- Admin Dashboard --
     "admin.dash.title": "Dashboard",
@@ -131,9 +134,27 @@ const TRANSLATIONS = {
 
     // -- Admin Manage --
     "admin.manage.title": "Fitantanana",
+    "admin.manage.plan_created": "Drafitra '{{name}}' noforonina.",
+    "admin.manage.tokens_generated": "Code {{count}} naorina.",
     "admin.plans.edit": "Fahasahana drafitra",
     "admin.plans.cancel": "Aoka",
     "admin.plans.save": "Tehirizo",
+
+    // -- Admin Errors (validation) --
+    "admin.error.csrf": "Fangatahana tsy mety. Andramo indray azafady.",
+    "admin.error.duration_required": "Ny faharetan'ny ilaina.",
+    "admin.error.price_required": "Ny vidiny ilaina.",
+    "admin.error.name_too_long_200": "Ny anarana dia tsy maintsy latsaky ny 200 litera.",
+    "admin.error.name_empty": "Ny anarana tsy maintsy feno.",
+    "admin.error.name_too_long": "Ny anarana dia tsy maintsy latsaky ny 100 litera.",
+    "admin.error.duration_positive": "Ny faharetan'ny dia tsy maintsy > 0.",
+    "admin.error.duration_max": "Ny faharetan'ny dia tsy maintsy <= 1440 minitra (24h).",
+    "admin.error.price_negative": "Ny vidiny dia tsy maintsy >= 0.",
+
+    // -- Generic Errors --
+    "error.internal": "Nisy olana. Andramo indray azafady.",
+    "error.rate_limit": "Andraso kely azafady, efa be loatra ny fanandramana.",
+    "error.constraint": "Fanoroana tsy mety na efa misy.",
 
     // -- Status --
     "status.active": "mandeha",
@@ -178,6 +199,8 @@ const TRANSLATIONS = {
     "portal.error.rate_limit": "Trop de tentatives. Veuillez patienter.",
     "portal.error.device": "Appareil non identifié. Vérifiez votre connexion WiFi.",
     "portal.error.internal": "Erreur interne. Veuillez réessayer.",
+    "portal.error.csrf": "Requête invalide. Veuillez réessayer.",
+    "portal.error.expired": "Session expirée. Veuillez acheter un nouveau code.",
 
     // -- Success --
     "success.title": "Connecté !",
@@ -204,6 +227,7 @@ const TRANSLATIONS = {
     "admin.login.password": "Mot de passe",
     "admin.login.submit": "Se connecter",
     "admin.login.error": "Identifiants invalides.",
+    "admin.login.error.rate_limit": "Trop de tentatives. Veuillez patienter.",
 
     // -- Admin Dashboard --
     "admin.dash.title": "Tableau de bord",
@@ -281,9 +305,27 @@ const TRANSLATIONS = {
 
     // -- Admin Manage --
     "admin.manage.title": "Gestion",
+    "admin.manage.plan_created": "Forfait '{{name}}' créé.",
+    "admin.manage.tokens_generated": "{{count}} code(s) généré(s).",
     "admin.plans.edit": "Modifier le forfait",
     "admin.plans.cancel": "Annuler",
     "admin.plans.save": "Enregistrer",
+
+    // -- Admin Errors (validation) --
+    "admin.error.csrf": "Requête invalide. Veuillez réessayer.",
+    "admin.error.duration_required": "La durée est requise.",
+    "admin.error.price_required": "Le prix est requis.",
+    "admin.error.name_too_long_200": "Le nom doit faire 200 caractères maximum.",
+    "admin.error.name_empty": "Le nom ne doit pas être vide.",
+    "admin.error.name_too_long": "Le nom doit faire 100 caractères maximum.",
+    "admin.error.duration_positive": "La durée doit être supérieure à 0.",
+    "admin.error.duration_max": "La durée ne doit pas dépasser 1440 minutes (24h).",
+    "admin.error.price_negative": "Le prix doit être supérieur ou égal à 0.",
+
+    // -- Generic Errors --
+    "error.internal": "Erreur interne. Veuillez réessayer.",
+    "error.rate_limit": "Trop de tentatives. Veuillez patienter.",
+    "error.constraint": "Référence invalide ou entrée en doublon.",
 
     // -- Status --
     "status.active": "actif",
@@ -328,6 +370,8 @@ const TRANSLATIONS = {
     "portal.error.rate_limit": "Too many attempts. Please wait.",
     "portal.error.device": "Device not identified. Check your WiFi connection.",
     "portal.error.internal": "Internal error. Please try again.",
+    "portal.error.csrf": "Invalid request. Please try again.",
+    "portal.error.expired": "Session expired. Please purchase a new code.",
 
     // -- Success --
     "success.title": "Connected!",
@@ -354,6 +398,7 @@ const TRANSLATIONS = {
     "admin.login.password": "Password",
     "admin.login.submit": "Log in",
     "admin.login.error": "Invalid credentials.",
+    "admin.login.error.rate_limit": "Too many attempts. Please wait and try again.",
 
     // -- Admin Dashboard --
     "admin.dash.title": "Dashboard",
@@ -431,9 +476,27 @@ const TRANSLATIONS = {
 
     // -- Admin Manage --
     "admin.manage.title": "Management",
+    "admin.manage.plan_created": "Plan '{{name}}' created.",
+    "admin.manage.tokens_generated": "{{count}} token(s) generated.",
     "admin.plans.edit": "Edit plan",
     "admin.plans.cancel": "Cancel",
     "admin.plans.save": "Save",
+
+    // -- Admin Errors (validation) --
+    "admin.error.csrf": "Invalid request. Please try again.",
+    "admin.error.duration_required": "Duration is required.",
+    "admin.error.price_required": "Price is required.",
+    "admin.error.name_too_long_200": "Name must be 200 characters or less.",
+    "admin.error.name_empty": "Name must not be empty.",
+    "admin.error.name_too_long": "Name must be 100 characters or less.",
+    "admin.error.duration_positive": "Duration must be greater than 0.",
+    "admin.error.duration_max": "Duration must not exceed 1440 minutes (24h).",
+    "admin.error.price_negative": "Price must be 0 or greater.",
+
+    // -- Generic Errors --
+    "error.internal": "Internal error. Please try again.",
+    "error.rate_limit": "Too many attempts. Please wait and try again.",
+    "error.constraint": "Invalid reference or duplicate entry.",
 
     // -- Status --
     "status.active": "active",
@@ -488,10 +551,29 @@ function setLang(lang) {
   applyLang(lang);
 }
 
-/** Translate a single key. Returns the key itself if not found. */
-function t(key, lang) {
+/**
+ * Translate a single key with optional interpolation.
+ *
+ * @param {string} key   - Translation key (e.g. "admin.manage.plan_created")
+ * @param {string} [lang] - Language code; defaults to current language
+ * @param {Object} [args] - Named interpolation values, e.g. { count: "5", name: "WiFi 1h" }
+ * @returns {string} Translated string with {{placeholders}} replaced, or the key itself if not found
+ *
+ * Example:
+ *   Translation: "{{count}} code(s) créé(s)"
+ *   t("admin.manage.tokens_generated", "fr", { count: "5" })
+ *   => "5 code(s) créé(s)"
+ */
+function t(key, lang, args) {
   lang = lang || getLang();
-  return (TRANSLATIONS[lang] && TRANSLATIONS[lang][key]) || key;
+  var val = (TRANSLATIONS[lang] && TRANSLATIONS[lang][key]) || key;
+  if (args) {
+    var keys = Object.keys(args);
+    for (var i = 0; i < keys.length; i++) {
+      val = val.replace(new RegExp("\\{\\{" + keys[i] + "\\}\\}", "g"), args[keys[i]]);
+    }
+  }
+  return val;
 }
 
 /** Apply translations to all data-i18n elements on the page. */
@@ -501,10 +583,15 @@ function applyLang(lang) {
   // Update html lang attribute
   document.documentElement.lang = lang === "mg" ? "mg" : lang === "fr" ? "fr" : "en";
 
-  // Text content
+  // Text content (with optional interpolation via data-i18n-args)
   document.querySelectorAll("[data-i18n]").forEach(function (el) {
     var key = el.getAttribute("data-i18n");
-    var val = t(key, lang);
+    var args = null;
+    var argsAttr = el.getAttribute("data-i18n-args");
+    if (argsAttr) {
+      try { args = JSON.parse(argsAttr); } catch (_) { /* ignore malformed JSON */ }
+    }
+    var val = t(key, lang, args);
     if (val !== key) el.textContent = val;
   });
 

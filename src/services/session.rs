@@ -194,10 +194,11 @@ pub async fn cleanup_ticker(state: Arc<AppState>, shutdown: CancellationToken) {
                 }
             }
 
-            // Also purge old audit log entries (365 days retention)
-            match state.db.purge_audit_log(365).await {
+            // Also purge old audit log entries
+            let audit_retention = state.config.session.audit_retention_days;
+            match state.db.purge_audit_log(audit_retention).await {
                 Ok(count) if count > 0 => {
-                    info!(count, "purged old audit log entries");
+                    info!(count, audit_retention, "purged old audit log entries");
                 }
                 Ok(_) => {}
                 Err(e) => {

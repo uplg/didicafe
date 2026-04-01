@@ -4,10 +4,11 @@ use std::str::FromStr;
 
 /// Type-safe token status values.
 ///
-/// Stored in SQLite as lowercase strings. Parsed via `sqlx::FromRow` using
-/// the `String` field, then converted via helper methods.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+/// Stored in SQLite as lowercase strings. Decoded directly by sqlx via
+/// the `Type` derive with `rename_all = "lowercase"`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, sqlx::Type)]
 #[serde(rename_all = "lowercase")]
+#[sqlx(type_name = "TEXT", rename_all = "lowercase")]
 pub enum TokenStatus {
     Unused,
     Active,
@@ -50,9 +51,22 @@ impl TokenStatus {
     }
 }
 
+/// Allow comparison with string slices (used by askama templates).
+impl PartialEq<&str> for TokenStatus {
+    fn eq(&self, other: &&str) -> bool {
+        match self {
+            Self::Unused => *other == "unused",
+            Self::Active => *other == "active",
+            Self::Expired => *other == "expired",
+            Self::Revoked => *other == "revoked",
+        }
+    }
+}
+
 /// Type-safe session status values.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, sqlx::Type)]
 #[serde(rename_all = "lowercase")]
+#[sqlx(type_name = "TEXT", rename_all = "lowercase")]
 pub enum SessionStatus {
     Active,
     Expired,
@@ -89,6 +103,17 @@ impl SessionStatus {
     }
 }
 
+/// Allow comparison with string slices (used by askama templates).
+impl PartialEq<&str> for SessionStatus {
+    fn eq(&self, other: &&str) -> bool {
+        match self {
+            Self::Active => *other == "active",
+            Self::Expired => *other == "expired",
+            Self::Disconnected => *other == "disconnected",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct Plan {
     pub id: i64,
@@ -105,19 +130,12 @@ pub struct Token {
     pub code: String,
     pub name: Option<String>,
     pub plan_id: i64,
-    pub status: String,
+    pub status: TokenStatus,
     pub created_at: String,
     pub redeemed_at: Option<String>,
     pub expires_at: Option<String>,
     pub duration_minutes: i64,
     pub plan_name: String,
-}
-
-impl Token {
-    /// Parse the status string into a typed enum.
-    pub fn token_status(&self) -> Option<TokenStatus> {
-        TokenStatus::try_from_str(&self.status)
-    }
 }
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
@@ -128,7 +146,7 @@ pub struct Session {
     pub ip_address: String,
     pub started_at: String,
     pub expires_at: String,
-    pub status: String,
+    pub status: SessionStatus,
     pub token_code: Option<String>,
     pub token_name: Option<String>,
 }
@@ -152,11 +170,6 @@ impl Session {
         let now = chrono::Utc::now().naive_utc();
         let diff = expires.signed_duration_since(now).num_seconds();
         diff.max(0)
-    }
-
-    /// Parse the status string into a typed enum.
-    pub fn session_status(&self) -> Option<SessionStatus> {
-        SessionStatus::try_from_str(&self.status)
     }
 }
 

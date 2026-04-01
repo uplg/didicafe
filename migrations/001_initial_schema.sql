@@ -34,3 +34,4 @@ CREATE INDEX IF NOT EXISTS idx_token_code ON token(code);
 CREATE INDEX IF NOT EXISTS idx_token_status ON token(status);
 CREATE INDEX IF NOT EXISTS idx_session_mac ON session(mac_address);
 CREATE INDEX IF NOT EXISTS idx_session_status ON session(status);
+CREATE INDEX IF NOT EXISTS idx_session_expires_at ON session(expires_at);

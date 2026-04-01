@@ -53,7 +53,7 @@ impl From<sqlx::Error> for AppError {
     fn from(e: sqlx::Error) -> Self {
         let msg = e.to_string();
         if msg.contains("UNIQUE constraint") || msg.contains("FOREIGN KEY constraint") {
-            AppError::BadRequest("Invalid reference or duplicate entry.".to_string())
+            AppError::BadRequest("error.constraint".to_string())
         } else {
             error!("database error: {e}");
             AppError::Database(msg)
@@ -66,11 +66,11 @@ impl IntoResponse for AppError {
         let (status, client_message) = match &self {
             AppError::Database(e) => {
                 error!("database error: {e}");
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error.")
+                (StatusCode::INTERNAL_SERVER_ERROR, "error.internal")
             }
             AppError::Firewall(e) => {
                 error!("firewall error: {e}");
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error.")
+                (StatusCode::INTERNAL_SERVER_ERROR, "error.internal")
             }
             AppError::Unauthorized { api_path } => {
                 if *api_path {
@@ -82,18 +82,18 @@ impl IntoResponse for AppError {
                 return Redirect::to("/admin/login").into_response();
             }
             AppError::NotFound(detail) => {
-                // NotFound details are safe to expose (e.g. "token not found")
+                // NotFound details are safe to expose (now i18n keys or developer-facing)
                 return (StatusCode::NOT_FOUND, detail.clone()).into_response();
             }
             AppError::BadRequest(detail) => {
-                // BadRequest details are safe to expose (e.g. "invalid token format")
+                // BadRequest details are safe to expose (now i18n keys or developer-facing)
                 return (StatusCode::BAD_REQUEST, detail.clone()).into_response();
             }
             AppError::RateLimited { retry_after } => {
                 // 429 Too Many Requests — never leak whether a token exists (OWASP)
                 let mut response = (
                     StatusCode::TOO_MANY_REQUESTS,
-                    "Too many attempts. Please wait and try again.",
+                    "error.rate_limit",
                 )
                     .into_response();
                 if let Some(secs) = retry_after
@@ -105,7 +105,7 @@ impl IntoResponse for AppError {
             }
             AppError::Internal(e) => {
                 error!("internal error: {e}");
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error.")
+                (StatusCode::INTERNAL_SERVER_ERROR, "error.internal")
             }
         };
 

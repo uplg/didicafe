@@ -16,6 +16,7 @@ use crate::AppState;
 use crate::services::rate_limit::RateLimitResult;
 use super::error::{AppError, render};
 use super::extractors::{AdminSession, CsrfToken, extract_cookie, ADMIN_COOKIE_NAME};
+use super::I18nMessage;
 
 /// Maximum length for login form fields to prevent Argon2 DoS.
 /// OWASP recommends limiting password length to prevent hash-flooding.
@@ -92,7 +93,7 @@ struct ManageTemplate {
     tokens: Vec<crate::db::Token>,
     plans: Vec<crate::db::Plan>,
     sessions: Vec<crate::db::Session>,
-    message: Option<String>,
+    message: Option<I18nMessage>,
     csrf_token: String,
 }
 
@@ -162,7 +163,7 @@ async fn login_submit(
     match state.admin_rate_limiter.check_and_record(addr.ip()) {
         RateLimitResult::Banned { retry_after_seconds } => {
             let body = render(&LoginTemplate {
-                error: Some("Too many attempts. Please wait and try again.".to_string()),
+                error: Some("admin.login.error.rate_limit".to_string()),
             })?;
             return Ok((
                 StatusCode::TOO_MANY_REQUESTS,
@@ -174,7 +175,7 @@ async fn login_submit(
         }
         RateLimitResult::Throttled => {
             let body = render(&LoginTemplate {
-                error: Some("Too many attempts. Please wait and try again.".to_string()),
+                error: Some("admin.login.error.rate_limit".to_string()),
             })?;
             return Ok((StatusCode::TOO_MANY_REQUESTS, body).into_response());
         }
@@ -184,7 +185,7 @@ async fn login_submit(
     // Input length limits: prevent Argon2 DoS with oversized passwords
     if form.username.len() > MAX_USERNAME_LEN || form.password.len() > MAX_PASSWORD_LEN {
         let body = render(&LoginTemplate {
-            error: Some("Invalid credentials.".to_string()),
+            error: Some("admin.login.error".to_string()),
         })?;
         return Ok(body.into_response());
     }
@@ -214,7 +215,7 @@ async fn login_submit(
         let logged_user = &form.username[..form.username.len().min(MAX_USERNAME_LEN)];
         state.db.audit_log(logged_user, "login_failed", None, None, None).await.ok();
         let body = render(&LoginTemplate {
-            error: Some("Invalid credentials.".to_string()),
+            error: Some("admin.login.error".to_string()),
         })?;
         Ok(body.into_response())
     }
@@ -284,20 +285,22 @@ async fn manage_submit(
         .ct_eq(csrf.0.as_bytes())
         .into();
     if !csrf_ok {
-        return Err(AppError::BadRequest("Invalid CSRF token".to_string()));
+        return Err(AppError::BadRequest("admin.error.csrf".to_string()));
     }
 
     let message = if let Some(plan_name) = &form.plan_name {
         if !plan_name.is_empty() {
             let duration = form.duration
-                .ok_or_else(|| AppError::BadRequest("duration is required".to_string()))?;
+                .ok_or_else(|| AppError::BadRequest("admin.error.duration_required".to_string()))?;
             let price = form.price
-                .ok_or_else(|| AppError::BadRequest("price is required".to_string()))?;
+                .ok_or_else(|| AppError::BadRequest("admin.error.price_required".to_string()))?;
             validate_plan_input(plan_name, duration, price)?;
             state.db.create_plan(plan_name, duration, price).await
                 .map_err(AppError::Internal)?;
             state.db.audit_log(&state.config.admin.username, "create_plan", Some("plan"), None, Some(plan_name)).await.ok();
-            Some(format!("Plan '{}' created.", plan_name))
+            Some(I18nMessage::with_args("admin.manage.plan_created", [
+                ("name", plan_name.clone()),
+            ]))
         } else {
             None
         }
@@ -306,7 +309,7 @@ async fn manage_submit(
         if count > 0 {
             let token_name = form.name.as_deref().unwrap_or_default();
             if token_name.len() > 200 {
-                return Err(AppError::BadRequest("name must be 200 characters or less".to_string()));
+                return Err(AppError::BadRequest("admin.error.name_too_long_200".to_string()));
             }
             let codes = crate::services::token::generate_tokens(
                 &state.db,
@@ -316,7 +319,9 @@ async fn manage_submit(
                 Some(token_name),
             ).await.map_err(AppError::Internal)?;
             state.db.audit_log(&state.config.admin.username, "generate_tokens", Some("token"), Some(plan_id), Some(&format!("{} tokens for plan {}", codes.len(), plan_id))).await.ok();
-            Some(format!("{} token(s) generated", codes.len()))
+            Some(I18nMessage::with_args("admin.manage.tokens_generated", [
+                ("count", codes.len().to_string()),
+            ]))
         } else {
             None
         }
@@ -339,19 +344,19 @@ async fn manage_submit(
 /// Validate plan input fields. Returns `Err(BadRequest)` on invalid data.
 pub fn validate_plan_input(name: &str, duration: i64, price: i64) -> Result<(), AppError> {
     if name.is_empty() {
-        return Err(AppError::BadRequest("name must not be empty".to_string()));
+        return Err(AppError::BadRequest("admin.error.name_empty".to_string()));
     }
     if name.len() > 100 {
-        return Err(AppError::BadRequest("name must be 100 characters or less".to_string()));
+        return Err(AppError::BadRequest("admin.error.name_too_long".to_string()));
     }
     if duration <= 0 {
-        return Err(AppError::BadRequest("duration must be > 0".to_string()));
+        return Err(AppError::BadRequest("admin.error.duration_positive".to_string()));
     }
     if duration > 1440 {
-        return Err(AppError::BadRequest("duration must be <= 1440 minutes (24h)".to_string()));
+        return Err(AppError::BadRequest("admin.error.duration_max".to_string()));
     }
     if price < 0 {
-        return Err(AppError::BadRequest("price must be >= 0".to_string()));
+        return Err(AppError::BadRequest("admin.error.price_negative".to_string()));
     }
     Ok(())
 }
