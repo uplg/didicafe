@@ -92,18 +92,11 @@ async fn create_plan(
     _admin: AdminSession,
     Json(req): Json<CreatePlanRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    if req.name.is_empty() {
-        return Err(AppError::BadRequest("name must not be empty".to_string()));
-    }
-    if req.duration_minutes <= 0 {
-        return Err(AppError::BadRequest("duration_minutes must be > 0".to_string()));
-    }
-    if req.price_ariary < 0 {
-        return Err(AppError::BadRequest("price_ariary must be >= 0".to_string()));
-    }
+    super::admin::validate_plan_input(&req.name, req.duration_minutes, req.price_ariary)?;
 
     let id = state.db.create_plan(&req.name, req.duration_minutes, req.price_ariary).await
         .map_err(AppError::Internal)?;
+    state.db.audit_log(&state.config.admin.username, "create_plan", Some("plan"), None, Some(&req.name)).await.ok();
     Ok((StatusCode::CREATED, ApiResponse::success(serde_json::json!({ "id": id }))))
 }
 
@@ -113,21 +106,14 @@ async fn update_plan(
     Path(id): Path<i64>,
     Json(req): Json<UpdatePlanRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    if req.name.is_empty() {
-        return Err(AppError::BadRequest("name must not be empty".to_string()));
-    }
-    if req.duration_minutes <= 0 {
-        return Err(AppError::BadRequest("duration_minutes must be > 0".to_string()));
-    }
-    if req.price_ariary < 0 {
-        return Err(AppError::BadRequest("price_ariary must be >= 0".to_string()));
-    }
+    super::admin::validate_plan_input(&req.name, req.duration_minutes, req.price_ariary)?;
 
     let updated = state.db.update_plan(id, &req.name, req.duration_minutes, req.price_ariary, req.active).await
         .map_err(AppError::Internal)?;
     if !updated {
         return Err(AppError::NotFound(format!("plan {id} not found")));
     }
+    state.db.audit_log(&state.config.admin.username, "update_plan", Some("plan"), Some(id), None).await.ok();
     Ok(ApiResponse::success(serde_json::json!({ "id": id })))
 }
 
@@ -178,6 +164,9 @@ async fn generate_tokens(
     if req.name.is_empty() {
         return Err(AppError::BadRequest("name must not be empty".to_string()));
     }
+    if req.name.len() > 200 {
+        return Err(AppError::BadRequest("name must be 200 characters or less".to_string()));
+    }
     if req.count == 0 {
         return Err(AppError::BadRequest("count must be > 0".to_string()));
     }
@@ -221,6 +210,7 @@ async fn revoke_token(
 
     state.db.revoke_token(id).await
         .map_err(AppError::Internal)?;
+    state.db.audit_log(&state.config.admin.username, "revoke_token", Some("token"), Some(id), None).await.ok();
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -239,7 +229,8 @@ async fn disconnect_session(
     Path(id): Path<i64>,
 ) -> Result<StatusCode, AppError> {
     crate::services::session::disconnect(&state, id).await
-        .map_err(AppError::Firewall)?;
+        .map_err(|e| AppError::Firewall(crate::web::error::FirewallError::Internal(e.to_string())))?;
+    state.db.audit_log(&state.config.admin.username, "disconnect_session", Some("session"), Some(id), None).await.ok();
     Ok(StatusCode::NO_CONTENT)
 }
 

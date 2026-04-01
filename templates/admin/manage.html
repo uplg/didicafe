@@ -30,6 +30,7 @@
     <details class="mt-lg">
         <summary class="btn btn--outline" data-i18n="admin.tokens.generate">Générer des codes</summary>
         <form method="post" action="/admin/manage" class="mt-md">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="form-group">
                 <label for="token_name" data-i18n="admin.tokens.name">Nom</label>
                 <input type="text" id="token_name" name="name" required placeholder="ex: Promo weekend">
@@ -55,6 +56,7 @@
     <details class="mt-md">
         <summary class="btn btn--outline" data-i18n="admin.plans.create">Créer un forfait</summary>
         <form method="post" action="/admin/manage" class="mt-md">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="form-group">
                 <label for="plan_name" data-i18n="admin.plans.name">Nom</label>
                 <input type="text" id="plan_name" name="plan_name" required placeholder="1h WiFi">
@@ -171,7 +173,12 @@
                         {% endif %}
                     </td>
                     <td>
-                        <button type="button" class="btn btn--outline btn--sm" onclick="editPlan({{ p.id }}, '{{ p.name }}', {{ p.duration_minutes }}, {{ p.price_ariary }})">✎</button>
+                        <button type="button" class="btn btn--outline btn--sm"
+                            data-plan-id="{{ p.id }}"
+                            data-plan-name="{{ p.name }}"
+                            data-plan-duration="{{ p.duration_minutes }}"
+                            data-plan-price="{{ p.price_ariary }}"
+                            onclick="editPlanFromEl(this)">✎</button>
                         {% if p.active %}
                         <button type="button" class="btn btn--danger btn--sm" onclick="togglePlan({{ p.id }}, false, this)">×</button>
                         {% else %}
@@ -209,6 +216,15 @@ function togglePlan(id, activate, btn) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ active: activate })
     }).then(function(r) { if (r.ok) window.location.reload(); });
+}
+
+function editPlanFromEl(el) {
+    editPlan(
+        el.getAttribute("data-plan-id"),
+        el.getAttribute("data-plan-name"),
+        el.getAttribute("data-plan-duration"),
+        el.getAttribute("data-plan-price")
+    );
 }
 
 function editPlan(id, name, duration, price) {

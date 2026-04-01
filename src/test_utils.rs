@@ -9,6 +9,7 @@ use crate::config::{
 use crate::db::Database;
 use crate::firewall::MockFirewall;
 use crate::services::admin_session::AdminSessionStore;
+use crate::services::csrf::PortalCsrfStore;
 use crate::services::rate_limit::RateLimiter;
 
 /// Default valid config for tests.
@@ -64,6 +65,7 @@ pub async fn test_state() -> Arc<AppState> {
     config.firewall.set_name = "test".to_string();
 
     let rate_limiter = RateLimiter::new(&config.rate_limit);
+    let admin_rate_limiter = RateLimiter::new(&config.rate_limit);
 
     Arc::new(AppState {
         db,
@@ -71,6 +73,8 @@ pub async fn test_state() -> Arc<AppState> {
         firewall: Arc::new(MockFirewall::new()),
         admin_sessions: AdminSessionStore::new(3600),
         rate_limiter,
+        admin_rate_limiter,
+        portal_csrf_store: PortalCsrfStore::new(),
     })
 }
 

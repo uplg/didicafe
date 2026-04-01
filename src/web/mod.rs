@@ -25,7 +25,12 @@ use crate::AppState;
 /// - `Content-Security-Policy` — XSS, injection attacks
 /// - `Referrer-Policy: strict-origin-when-cross-origin` — information leakage
 /// - `X-XSS-Protection: 0` — disable legacy XSS auditor (CSP is the modern defense)
+/// - `Permissions-Policy` — restrict access to device APIs
+/// - `Cache-Control: no-store` on admin/api paths — prevent caching of sensitive data
 async fn security_headers(request: Request, next: Next) -> Response {
+    let is_sensitive = request.uri().path().starts_with("/admin")
+        || request.uri().path().starts_with("/api");
+
     let mut response = next.run(request).await;
     let headers = response.headers_mut();
 
@@ -51,6 +56,22 @@ async fn security_headers(request: Request, next: Next) -> Response {
         "X-XSS-Protection",
         HeaderValue::from_static("0"),
     );
+    headers.insert(
+        "Permissions-Policy",
+        HeaderValue::from_static("camera=(), microphone=(), geolocation=(), payment=(), usb=()"),
+    );
+
+    // Prevent caching of admin/API responses (session data, tokens, audit log)
+    if is_sensitive {
+        headers.insert(
+            "Cache-Control",
+            HeaderValue::from_static("no-store, no-cache, must-revalidate"),
+        );
+        headers.insert(
+            "Pragma",
+            HeaderValue::from_static("no-cache"),
+        );
+    }
 
     response
 }

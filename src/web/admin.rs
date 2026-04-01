@@ -10,24 +10,44 @@ use axum::{
 };
 use askama::Template;
 use serde::Deserialize;
+use subtle::ConstantTimeEq;
 
 use crate::AppState;
 use crate::services::rate_limit::RateLimitResult;
 use super::error::{AppError, render};
-use super::extractors::{AdminSession, extract_cookie, ADMIN_COOKIE_NAME};
+use super::extractors::{AdminSession, CsrfToken, extract_cookie, ADMIN_COOKIE_NAME};
+
+/// Maximum length for login form fields to prevent Argon2 DoS.
+/// OWASP recommends limiting password length to prevent hash-flooding.
+const MAX_USERNAME_LEN: usize = 256;
+const MAX_PASSWORD_LEN: usize = 1024;
 
 /// Verify a password against an Argon2id PHC hash string.
 ///
 /// Uses Argon2id per OWASP recommendations:
 /// https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#argon2id
-fn verify_password(password: &str, hash: &str) -> bool {
-    use argon2::Argon2;
-    use argon2::password_hash::{PasswordHash, PasswordVerifier};
+///
+/// Runs on a blocking thread via `spawn_blocking` because Argon2id is
+/// deliberately CPU/memory-intensive (19 MiB, 2 iterations). Running it
+/// on a tokio worker thread would stall all other requests on that thread.
+async fn verify_password(password: &str, hash: &str) -> bool {
+    let password = password.to_owned();
+    let hash = hash.to_owned();
 
-    let Ok(parsed) = PasswordHash::new(hash) else {
-        return false;
-    };
-    Argon2::default().verify_password(password.as_bytes(), &parsed).is_ok()
+    tokio::task::spawn_blocking(move || {
+        use argon2::Argon2;
+        use argon2::password_hash::{PasswordHash, PasswordVerifier};
+
+        let Ok(parsed) = PasswordHash::new(&hash) else {
+            return false;
+        };
+        Argon2::default().verify_password(password.as_bytes(), &parsed).is_ok()
+    })
+    .await
+    .unwrap_or_else(|e| {
+        tracing::error!("password verification task failed: {e}");
+        false
+    })
 }
 
 /// Build a Set-Cookie header value for the admin session.
@@ -35,7 +55,7 @@ fn verify_password(password: &str, hash: &str) -> bool {
 /// Flags per OWASP Session Management Cheat Sheet:
 /// - `HttpOnly`: prevents JavaScript access (XSS mitigation)
 /// - `SameSite=Strict`: prevents CSRF via cross-site requests
-/// - `Path=/admin` + `/api`: scoped to admin/API paths only
+/// - `Path=/`: required for both /admin and /api paths
 /// - `Secure`: omitted — the captive portal runs over HTTP on a local network
 fn session_cookie(session_id: &str) -> String {
     format!(
@@ -63,6 +83,7 @@ struct LoginTemplate {
 struct DashboardTemplate {
     stats: crate::db::DailyStats,
     active_sessions: Vec<crate::db::Session>,
+    csrf_token: String,
 }
 
 #[derive(Template)]
@@ -72,6 +93,7 @@ struct ManageTemplate {
     plans: Vec<crate::db::Plan>,
     sessions: Vec<crate::db::Session>,
     message: Option<String>,
+    csrf_token: String,
 }
 
 #[derive(Template)]
@@ -96,6 +118,7 @@ pub struct ManageForm {
     duration: Option<i64>,
     price: Option<i64>,
     plan_name: Option<String>,
+    csrf_token: String,
 }
 
 // -- Routes --
@@ -132,10 +155,11 @@ async fn login_page() -> Result<impl IntoResponse, AppError> {
 async fn login_submit(
     State(state): State<Arc<AppState>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: axum::http::HeaderMap,
     Form(form): Form<LoginForm>,
 ) -> Result<impl IntoResponse, AppError> {
     // Rate limit admin login attempts (OWASP: all auth endpoints)
-    match state.rate_limiter.check_and_record(addr.ip()) {
+    match state.admin_rate_limiter.check_and_record(addr.ip()) {
         RateLimitResult::Banned { retry_after_seconds } => {
             let body = render(&LoginTemplate {
                 error: Some("Too many attempts. Please wait and try again.".to_string()),
@@ -157,10 +181,28 @@ async fn login_submit(
         RateLimitResult::Allowed => {}
     }
 
-    if form.username == state.config.admin.username
-        && verify_password(&form.password, &state.config.admin.password_hash)
-    {
+    // Input length limits: prevent Argon2 DoS with oversized passwords
+    if form.username.len() > MAX_USERNAME_LEN || form.password.len() > MAX_PASSWORD_LEN {
+        let body = render(&LoginTemplate {
+            error: Some("Invalid credentials.".to_string()),
+        })?;
+        return Ok(body.into_response());
+    }
+
+    // Constant-time username comparison (prevents timing oracle)
+    let username_ok = form.username.as_bytes()
+        .ct_eq(state.config.admin.username.as_bytes())
+        .into();
+    let password_ok = verify_password(&form.password, &state.config.admin.password_hash).await;
+
+    if username_ok && password_ok {
         state.db.audit_log(&form.username, "login", None, None, None).await.ok();
+
+        // Session fixation fix: invalidate any existing session from this cookie
+        if let Some(old_id) = extract_cookie(&headers, ADMIN_COOKIE_NAME) {
+            state.admin_sessions.remove(&old_id);
+        }
+
         let session_id = state.admin_sessions.create();
         let cookie = session_cookie(&session_id);
         Ok((
@@ -168,6 +210,9 @@ async fn login_submit(
             Redirect::to("/admin"),
         ).into_response())
     } else {
+        // Log failed login attempt (OWASP audit trail) — truncate username to prevent log flooding
+        let logged_user = &form.username[..form.username.len().min(MAX_USERNAME_LEN)];
+        state.db.audit_log(logged_user, "login_failed", None, None, None).await.ok();
         let body = render(&LoginTemplate {
             error: Some("Invalid credentials.".to_string()),
         })?;
@@ -197,6 +242,7 @@ async fn logout(
 async fn dashboard(
     State(state): State<Arc<AppState>>,
     _admin: AdminSession,
+    csrf: CsrfToken,
 ) -> Result<impl IntoResponse, AppError> {
     let stats = state.db.get_daily_stats().await
         .map_err(AppError::Internal)?;
@@ -206,6 +252,7 @@ async fn dashboard(
     render(&DashboardTemplate {
         stats,
         active_sessions,
+        csrf_token: csrf.0,
     })
 }
 
@@ -213,18 +260,15 @@ async fn dashboard(
 async fn manage_page(
     State(state): State<Arc<AppState>>,
     _admin: AdminSession,
+    csrf: CsrfToken,
 ) -> Result<impl IntoResponse, AppError> {
-    let tokens = state.db.list_tokens(None).await
-        .map_err(AppError::Internal)?;
-    let plans = state.db.list_plans().await
-        .map_err(AppError::Internal)?;
-    let sessions = state.db.get_active_sessions().await
-        .map_err(AppError::Internal)?;
+    let (tokens, plans, sessions) = load_manage_data(&state).await?;
     render(&ManageTemplate {
         tokens,
         plans,
         sessions,
         message: None,
+        csrf_token: csrf.0,
     })
 }
 
@@ -232,20 +276,24 @@ async fn manage_page(
 async fn manage_submit(
     State(state): State<Arc<AppState>>,
     _admin: AdminSession,
+    csrf: CsrfToken,
     Form(form): Form<ManageForm>,
 ) -> Result<impl IntoResponse, AppError> {
+    // CSRF validation (constant-time comparison)
+    let csrf_ok: bool = form.csrf_token.as_bytes()
+        .ct_eq(csrf.0.as_bytes())
+        .into();
+    if !csrf_ok {
+        return Err(AppError::BadRequest("Invalid CSRF token".to_string()));
+    }
+
     let message = if let Some(plan_name) = &form.plan_name {
         if !plan_name.is_empty() {
             let duration = form.duration
                 .ok_or_else(|| AppError::BadRequest("duration is required".to_string()))?;
-            if duration <= 0 {
-                return Err(AppError::BadRequest("duration must be > 0".to_string()));
-            }
             let price = form.price
                 .ok_or_else(|| AppError::BadRequest("price is required".to_string()))?;
-            if price < 0 {
-                return Err(AppError::BadRequest("price must be >= 0".to_string()));
-            }
+            validate_plan_input(plan_name, duration, price)?;
             state.db.create_plan(plan_name, duration, price).await
                 .map_err(AppError::Internal)?;
             state.db.audit_log(&state.config.admin.username, "create_plan", Some("plan"), None, Some(plan_name)).await.ok();
@@ -257,6 +305,9 @@ async fn manage_submit(
         let count = form.count.unwrap_or(0);
         if count > 0 {
             let token_name = form.name.as_deref().unwrap_or_default();
+            if token_name.len() > 200 {
+                return Err(AppError::BadRequest("name must be 200 characters or less".to_string()));
+            }
             let codes = crate::services::token::generate_tokens(
                 &state.db,
                 &state.config.token,
@@ -273,18 +324,46 @@ async fn manage_submit(
         None
     };
 
-    let tokens = state.db.list_tokens(None).await
-        .map_err(AppError::Internal)?;
-    let plans = state.db.list_plans().await
-        .map_err(AppError::Internal)?;
-    let sessions = state.db.get_active_sessions().await
-        .map_err(AppError::Internal)?;
+    let (tokens, plans, sessions) = load_manage_data(&state).await?;
     render(&ManageTemplate {
         tokens,
         plans,
         sessions,
         message,
+        csrf_token: csrf.0,
     })
+}
+
+// -- Shared helpers --
+
+/// Validate plan input fields. Returns `Err(BadRequest)` on invalid data.
+pub fn validate_plan_input(name: &str, duration: i64, price: i64) -> Result<(), AppError> {
+    if name.is_empty() {
+        return Err(AppError::BadRequest("name must not be empty".to_string()));
+    }
+    if name.len() > 100 {
+        return Err(AppError::BadRequest("name must be 100 characters or less".to_string()));
+    }
+    if duration <= 0 {
+        return Err(AppError::BadRequest("duration must be > 0".to_string()));
+    }
+    if duration > 1440 {
+        return Err(AppError::BadRequest("duration must be <= 1440 minutes (24h)".to_string()));
+    }
+    if price < 0 {
+        return Err(AppError::BadRequest("price must be >= 0".to_string()));
+    }
+    Ok(())
+}
+
+/// Load all manage page data (tokens, plans, sessions) in one place.
+async fn load_manage_data(
+    state: &Arc<AppState>,
+) -> Result<(Vec<crate::db::Token>, Vec<crate::db::Plan>, Vec<crate::db::Session>), AppError> {
+    let tokens = state.db.list_tokens(None).await.map_err(AppError::Internal)?;
+    let plans = state.db.list_plans().await.map_err(AppError::Internal)?;
+    let sessions = state.db.get_active_sessions().await.map_err(AppError::Internal)?;
+    Ok((tokens, plans, sessions))
 }
 
 /// GET /admin/audit — audit log viewer (requires auth)
@@ -301,8 +380,8 @@ async fn audit_page(
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_argon2id_hash_and_verify() {
+    #[tokio::test]
+    async fn test_argon2id_hash_and_verify() {
         use argon2::{Argon2, Params};
         use argon2::password_hash::{PasswordHasher, SaltString, rand_core::OsRng};
 
@@ -317,8 +396,8 @@ mod tests {
         println!("Argon2id hash for 'changeme': {hash}");
 
         assert!(hash.starts_with("$argon2id$"));
-        assert!(verify_password("changeme", &hash));
-        assert!(!verify_password("wrongpassword", &hash));
+        assert!(verify_password("changeme", &hash).await);
+        assert!(!verify_password("wrongpassword", &hash).await);
     }
 
     #[test]

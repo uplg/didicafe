@@ -724,7 +724,7 @@ path = "/var/lib/didicafe/didicafe.db"
 [admin]
 username = "admin"
 # Argon2id hash of the password (OWASP recommended)
-# Generate with: echo -n 'yourpassword' | argon2 somesalt -id -t 2 -m 19 -p 1 -e
+# Generate with: echo -n "your_password" | argon2 $(openssl rand -base64 16) -id -m 14 -t 2 -p 1 -e
 password_hash = "$argon2id$..."
 
 [firewall]

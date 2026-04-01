@@ -28,6 +28,7 @@ toml = "1.1"
 # Auth & crypto
 rand = "0.10"
 argon2 = { version = "0.5", features = ["std"] }
+subtle = "2"
 
 # Time
 chrono = { version = "0.4", features = ["serde"] }

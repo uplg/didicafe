@@ -21,6 +21,7 @@ use super::extractors::ClientInfo;
 #[template(path = "portal.html")]
 struct PortalTemplate {
     error: Option<String>,
+    csrf_token: String,
 }
 
 #[derive(Template)]
@@ -42,6 +43,7 @@ struct PrivacyTemplate;
 #[derive(Deserialize)]
 pub struct AuthForm {
     token: String,
+    csrf_token: String,
 }
 
 // -- Routes --
@@ -66,8 +68,12 @@ async fn health_check(State(state): State<Arc<AppState>>) -> axum::http::StatusC
 }
 
 /// GET /portal -- splash page with token input
-async fn portal_page() -> Result<impl IntoResponse, AppError> {
-    render(&PortalTemplate { error: None })
+async fn portal_page(
+    State(state): State<Arc<AppState>>,
+    client: ClientInfo,
+) -> Result<impl IntoResponse, AppError> {
+    let csrf_token = state.portal_csrf_store.generate(&client.mac);
+    render(&PortalTemplate { error: None, csrf_token })
 }
 
 /// POST /portal/auth -- validate token, create session
@@ -76,6 +82,14 @@ async fn portal_auth(
     client: ClientInfo,
     Form(form): Form<AuthForm>,
 ) -> Result<impl IntoResponse, AppError> {
+    // CSRF validation: Synchronizer Token Pattern (server-side)
+    if !state.portal_csrf_store.validate(&client.mac, &form.csrf_token) {
+        return Ok(render(&PortalTemplate {
+            error: Some("Invalid request. Please try again.".to_string()),
+            csrf_token: state.portal_csrf_store.generate(&client.mac),
+        })?.into_response());
+    }
+
     // Rate limit check BEFORE any DB lookup (OWASP: never leak token existence)
     match state.rate_limiter.check_and_record(client.ip) {
         RateLimitResult::Allowed => {}
@@ -95,6 +109,7 @@ async fn portal_auth(
     if let Err(msg) = services::token::validate_token_format(&state.config.token, &code) {
         return Ok(render(&PortalTemplate {
             error: Some(msg),
+            csrf_token: state.portal_csrf_store.generate(&client.mac),
         })?.into_response());
     }
 
@@ -105,6 +120,7 @@ async fn portal_auth(
     let Some(token) = token else {
         return Ok(render(&PortalTemplate {
             error: Some("Invalid or already used token.".to_string()),
+            csrf_token: state.portal_csrf_store.generate(&client.mac),
         })?.into_response());
     };
 
@@ -120,6 +136,7 @@ async fn portal_auth(
             tracing::error!("session creation failed: {e}");
             Ok(render(&PortalTemplate {
                 error: Some("Internal error. Please try again.".to_string()),
+                csrf_token: state.portal_csrf_store.generate(&client.mac),
             })?.into_response())
         }
     }
@@ -130,22 +147,11 @@ async fn success_page(
     State(state): State<Arc<AppState>>,
     client: ClientInfo,
 ) -> Result<impl IntoResponse, AppError> {
-    let session = state.db.get_session_by_mac(&client.mac).await
-        .map_err(AppError::Internal)?;
-
-    let remaining_minutes = match session {
-        Some(s) => {
-            let secs = s.remaining_seconds();
-            // Round up so the user never sees "0 minutes" when there's still time
-            (secs + 59) / 60
-        }
-        None => {
-            // No active session — redirect to portal
-            return Ok(Redirect::to("/portal").into_response());
-        }
-    };
-
-    Ok(render(&SuccessTemplate { remaining_minutes })?.into_response())
+    let remaining_minutes = get_remaining_minutes(&state, &client.mac).await?;
+    match remaining_minutes {
+        Some(minutes) => Ok(render(&SuccessTemplate { remaining_minutes: minutes })?.into_response()),
+        None => Ok(Redirect::to("/portal").into_response()),
+    }
 }
 
 /// GET /portal/expired -- "session expired" page
@@ -195,6 +201,24 @@ async fn privacy_page() -> Result<impl IntoResponse, AppError> {
     render(&PrivacyTemplate)
 }
 
+// -- Shared helpers --
+
+/// Get remaining minutes for a session by MAC address.
+/// Returns `None` if no active session exists.
+async fn get_remaining_minutes(state: &Arc<AppState>, mac: &str) -> Result<Option<i64>, AppError> {
+    let session = state.db.get_session_by_mac(mac).await
+        .map_err(AppError::Internal)?;
+
+    match session {
+        Some(s) => {
+            let secs = s.remaining_seconds();
+            // Round up so the user never sees "0 minutes" when there's still time
+            Ok(Some((secs + 59) / 60))
+        }
+        None => Ok(None),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -227,10 +251,12 @@ mod tests {
     #[tokio::test]
     async fn test_portal_auth_invalid_format() {
         let state = test_state().await;
+        // Seed CSRF store for the test client MAC
+        state.portal_csrf_store.set("02:00:00:00:00:01", "test-csrf");
         let app = portal_router(state);
 
         let response = app
-            .oneshot(test_post_form("/portal/auth", "token=BADTOKEN"))
+            .oneshot(test_post_form("/portal/auth", "token=BADTOKEN&csrf_token=test-csrf"))
             .await
             .unwrap();
 
@@ -243,10 +269,11 @@ mod tests {
     #[tokio::test]
     async fn test_portal_auth_valid_format_nonexistent_token() {
         let state = test_state().await;
+        state.portal_csrf_store.set("02:00:00:00:00:01", "test-csrf");
         let app = portal_router(state);
 
         let response = app
-            .oneshot(test_post_form("/portal/auth", "token=DIDI-ABCD-EF23"))
+            .oneshot(test_post_form("/portal/auth", "token=DIDI-ABCD-EF23&csrf_token=test-csrf"))
             .await
             .unwrap();
 
@@ -264,10 +291,13 @@ mod tests {
         let plan_id = state.db.create_plan("1h WiFi", 60, 1000).await.unwrap();
         state.db.create_token("DIDI-ABCD-EF23", None, plan_id).await.unwrap();
 
-        // POST valid token
+        // Seed CSRF store with a known token
+        state.portal_csrf_store.set("02:00:00:00:00:01", "my-csrf-token");
+
+        // POST valid token with correct CSRF
         let app = portal_router(Arc::clone(&state));
         let response = app
-            .oneshot(test_post_form("/portal/auth", "token=DIDI-ABCD-EF23"))
+            .oneshot(test_post_form("/portal/auth", "token=DIDI-ABCD-EF23&csrf_token=my-csrf-token"))
             .await
             .unwrap();
 
@@ -282,16 +312,51 @@ mod tests {
         let token = state.db.get_token_by_code("DIDI-ABCD-EF23").await.unwrap().unwrap();
         assert_eq!(token.status, "active");
 
-        // Verify: session was created with the mock MAC (unknown = "unknown")
+        // Verify: session was created
         let sessions = state.db.get_active_sessions().await.unwrap();
         assert_eq!(sessions.len(), 1);
 
         // Verify: firewall was called
         let fw = state.firewall.as_ref();
-        // Downcast to MockFirewall to check calls
-        let mock = unsafe { &*(fw as *const dyn crate::firewall::Firewall as *const MockFirewall) };
+        let mock = fw.as_any().downcast_ref::<MockFirewall>()
+            .expect("firewall should be MockFirewall in tests");
         let calls = mock.calls();
         assert_eq!(calls.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_portal_auth_csrf_invalid() {
+        let state = test_state().await;
+        // Seed with a different token than what we'll submit
+        state.portal_csrf_store.set("02:00:00:00:00:01", "correct-token");
+        let app = portal_router(state);
+
+        let response = app
+            .oneshot(test_post_form("/portal/auth", "token=DIDI-ABCD-EF23&csrf_token=wrong-token"))
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let html = String::from_utf8_lossy(&body);
+        assert!(html.contains("Invalid request"));
+    }
+
+    #[tokio::test]
+    async fn test_portal_auth_csrf_missing() {
+        let state = test_state().await;
+        // Don't seed CSRF store at all
+        let app = portal_router(state);
+
+        let response = app
+            .oneshot(test_post_form("/portal/auth", "token=DIDI-ABCD-EF23&csrf_token=whatever"))
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let html = String::from_utf8_lossy(&body);
+        assert!(html.contains("Invalid request"));
     }
 
     #[tokio::test]

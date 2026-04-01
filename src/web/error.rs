@@ -7,6 +7,13 @@ use axum::{
 use serde_json::json;
 use tracing::error;
 
+/// Firewall-specific errors.
+#[derive(Debug, thiserror::Error)]
+pub enum FirewallError {
+    #[error("firewall internal error: {0}")]
+    Internal(String),
+}
+
 /// Application-level error type for all handlers.
 ///
 /// Maps domain errors to appropriate HTTP status codes.
@@ -14,10 +21,10 @@ use tracing::error;
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
     #[error("database error: {0}")]
-    Database(#[from] sqlx::Error),
+    Database(String),
 
     #[error("firewall error: {0}")]
-    Firewall(anyhow::Error),
+    Firewall(#[from] FirewallError),
 
     #[error("authentication required")]
     Unauthorized {
@@ -39,6 +46,19 @@ pub enum AppError {
 
     #[error("internal error: {0}")]
     Internal(#[from] anyhow::Error),
+}
+
+/// Convert sqlx::Error to AppError, mapping constraint violations to BadRequest.
+impl From<sqlx::Error> for AppError {
+    fn from(e: sqlx::Error) -> Self {
+        let msg = e.to_string();
+        if msg.contains("UNIQUE constraint") || msg.contains("FOREIGN KEY constraint") {
+            AppError::BadRequest("Invalid reference or duplicate entry.".to_string())
+        } else {
+            error!("database error: {e}");
+            AppError::Database(msg)
+        }
+    }
 }
 
 impl IntoResponse for AppError {

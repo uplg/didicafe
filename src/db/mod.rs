@@ -356,6 +356,17 @@ impl Database {
         Ok(entries)
     }
 
+    /// Purge audit log entries older than `retention_days`.
+    pub async fn purge_audit_log(&self, retention_days: i64) -> Result<u64> {
+        let result = sqlx::query(
+            "DELETE FROM audit_log WHERE timestamp < datetime('now', ?1 || ' days')",
+        )
+        .bind(format!("-{retention_days}"))
+        .execute(&self.pool)
+        .await?;
+        Ok(result.rows_affected())
+    }
+
     // -- Stats --
 
     pub async fn get_daily_stats(&self) -> Result<DailyStats> {
@@ -622,19 +633,19 @@ mod tests {
     #[test]
     fn test_token_status_roundtrip() {
         for s in TokenStatus::ALL {
-            let status = TokenStatus::from_str(s).unwrap();
+            let status = TokenStatus::try_from_str(s).unwrap();
             assert_eq!(&status.to_string(), *s);
         }
-        assert!(TokenStatus::from_str("bogus").is_none());
+        assert!(TokenStatus::try_from_str("bogus").is_none());
     }
 
     #[test]
     fn test_session_status_roundtrip() {
         for s in &["active", "expired", "disconnected"] {
-            let status = SessionStatus::from_str(s).unwrap();
+            let status = SessionStatus::try_from_str(s).unwrap();
             assert_eq!(&status.to_string(), *s);
         }
-        assert!(SessionStatus::from_str("bogus").is_none());
+        assert!(SessionStatus::try_from_str("bogus").is_none());
     }
 
     // -- Daily stats --

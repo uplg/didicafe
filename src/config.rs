@@ -121,6 +121,14 @@ impl Config {
             self.admin.password_hash.starts_with("$argon2id$"),
             "admin.password_hash must be an Argon2id PHC string (starts with $argon2id$)"
         );
+        // Reject known default/weak password hashes
+        const KNOWN_WEAK_HASHES: &[&str] = &[
+            "$argon2id$v=19$m=19456,t=2,p=1$UmHhUjxRtY3c7xV5M6xDaA$Vwia8SfxfxVLTom4LovEtY8PbJitJYDissghdMfTcSM",
+        ];
+        anyhow::ensure!(
+            !KNOWN_WEAK_HASHES.contains(&self.admin.password_hash.as_str()),
+            "admin.password_hash is a known default/weak password. Generate a strong password hash before deploying."
+        );
         anyhow::ensure!(
             self.admin.session_timeout_seconds > 0,
             "admin.session_timeout_seconds must be > 0"
@@ -156,8 +164,8 @@ impl Config {
             "token.charset must not be empty"
         );
         anyhow::ensure!(
-            self.token.length >= 2 && self.token.length.is_multiple_of(2),
-            "token.length must be >= 2 and even, got {}",
+            self.token.length >= 6 && self.token.length.is_multiple_of(2),
+            "token.length must be >= 6 and even, got {}",
             self.token.length
         );
         anyhow::ensure!(
@@ -187,6 +195,11 @@ impl Config {
         anyhow::ensure!(
             self.session.cleanup_interval_seconds > 0,
             "session.cleanup_interval_seconds must be > 0"
+        );
+        anyhow::ensure!(
+            self.session.retention_days > 0,
+            "session.retention_days must be > 0, got {}",
+            self.session.retention_days
         );
 
         Ok(())

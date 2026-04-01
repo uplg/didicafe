@@ -9,6 +9,7 @@ pub use nftables::NftablesController;
 pub use mock::MockFirewall;
 
 use anyhow::Result;
+use std::any::Any;
 use std::future::Future;
 use std::pin::Pin;
 
@@ -34,4 +35,7 @@ pub trait Firewall: Send + Sync {
 
     /// Initialize the firewall table and set (idempotent, called on startup).
     fn init_ruleset(&self) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>>;
+
+    /// Downcast support for tests.
+    fn as_any(&self) -> &dyn Any;
 }

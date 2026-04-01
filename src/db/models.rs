@@ -1,5 +1,6 @@
 use serde::Serialize;
 use std::fmt;
+use std::str::FromStr;
 
 /// Type-safe token status values.
 ///
@@ -25,19 +26,28 @@ impl fmt::Display for TokenStatus {
     }
 }
 
-impl TokenStatus {
-    pub fn from_str(s: &str) -> Option<Self> {
+impl FromStr for TokenStatus {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "unused" => Some(Self::Unused),
-            "active" => Some(Self::Active),
-            "expired" => Some(Self::Expired),
-            "revoked" => Some(Self::Revoked),
-            _ => None,
+            "unused" => Ok(Self::Unused),
+            "active" => Ok(Self::Active),
+            "expired" => Ok(Self::Expired),
+            "revoked" => Ok(Self::Revoked),
+            _ => Err(format!("invalid token status: {s}")),
         }
     }
+}
 
+impl TokenStatus {
     /// All valid status values (for input validation).
     pub const ALL: &[&str] = &["unused", "active", "expired", "revoked"];
+
+    /// Parse from string, returning `None` on invalid input.
+    pub fn try_from_str(s: &str) -> Option<Self> {
+        Self::from_str(s).ok()
+    }
 }
 
 /// Type-safe session status values.
@@ -59,14 +69,23 @@ impl fmt::Display for SessionStatus {
     }
 }
 
-impl SessionStatus {
-    pub fn from_str(s: &str) -> Option<Self> {
+impl FromStr for SessionStatus {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "active" => Some(Self::Active),
-            "expired" => Some(Self::Expired),
-            "disconnected" => Some(Self::Disconnected),
-            _ => None,
+            "active" => Ok(Self::Active),
+            "expired" => Ok(Self::Expired),
+            "disconnected" => Ok(Self::Disconnected),
+            _ => Err(format!("invalid session status: {s}")),
         }
+    }
+}
+
+impl SessionStatus {
+    /// Parse from string, returning `None` on invalid input.
+    pub fn try_from_str(s: &str) -> Option<Self> {
+        Self::from_str(s).ok()
     }
 }
 
@@ -96,7 +115,7 @@ pub struct Token {
 impl Token {
     /// Parse the status string into a typed enum.
     pub fn token_status(&self) -> Option<TokenStatus> {
-        TokenStatus::from_str(&self.status)
+        TokenStatus::try_from_str(&self.status)
     }
 }
 
@@ -136,7 +155,7 @@ impl Session {
 
     /// Parse the status string into a typed enum.
     pub fn session_status(&self) -> Option<SessionStatus> {
-        SessionStatus::from_str(&self.status)
+        SessionStatus::try_from_str(&self.status)
     }
 }
 

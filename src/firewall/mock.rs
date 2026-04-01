@@ -1,4 +1,5 @@
 use anyhow::Result;
+use std::any::Any;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Mutex;
@@ -32,6 +33,7 @@ impl MockFirewall {
     pub fn calls(&self) -> Vec<FirewallCall> {
         self.calls.lock().expect("mock lock poisoned").clone()
     }
+
 }
 
 impl Firewall for MockFirewall {
@@ -69,6 +71,10 @@ impl Firewall for MockFirewall {
             .expect("mock lock poisoned")
             .push(FirewallCall::InitRuleset);
         Box::pin(async { Ok(()) })
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 

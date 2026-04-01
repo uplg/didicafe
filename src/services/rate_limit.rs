@@ -67,7 +67,7 @@ impl RateLimiter {
             }
         }
 
-        // 2. Remove expired ban (if any)
+        // 2. Remove expired bans
         {
             let mut bans = self.bans.write().expect("bans lock poisoned");
             bans.retain(|_, ban_until| now < *ban_until);
@@ -76,6 +76,16 @@ impl RateLimiter {
         // 3. Record attempt and check thresholds
         let window = std::time::Duration::from_secs(self.config.auth_window_seconds);
         let mut attempts = self.attempts.write().expect("attempts lock poisoned");
+
+        // Periodic sweep: prune stale IPs to prevent unbounded memory growth.
+        // Run every 256 calls (cheap check via entry count modulo).
+        if !attempts.is_empty() && attempts.len().is_multiple_of(256) {
+            attempts.retain(|_, timestamps| {
+                timestamps.retain(|&ts| now.duration_since(ts) < window);
+                !timestamps.is_empty()
+            });
+        }
+
         let entry = attempts.entry(ip).or_default();
 
         // Prune attempts outside the current window

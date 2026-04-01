@@ -14,59 +14,6 @@ use super::error::AppError;
 /// Cookie name for admin sessions.
 pub const ADMIN_COOKIE_NAME: &str = "didicafe_admin";
 
-/// Client network identity extracted from the HTTP connection.
-///
-/// - `ip`: The client's IP address from the TCP socket (`ConnectInfo<SocketAddr>`).
-/// - `mac`: The client's MAC address resolved from the ARP table.
-///
-/// If the MAC cannot be resolved (e.g., loopback connections during development),
-/// the extractor returns `AppError::BadRequest`.
-pub struct ClientInfo {
-    pub ip: IpAddr,
-    pub mac: String,
-}
-
-impl<S: Send + Sync> FromRequestParts<S> for ClientInfo {
-    type Rejection = AppError;
-
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        // Extract the client's socket address from the TCP connection
-        let ConnectInfo(addr) = ConnectInfo::<SocketAddr>::from_request_parts(parts, state)
-            .await
-            .map_err(|e| {
-                warn!("failed to extract ConnectInfo: {e}");
-                AppError::Internal(anyhow::anyhow!("failed to determine client address"))
-            })?;
-
-        let ip = addr.ip();
-
-        // Look up the MAC address from the ARP table
-        #[cfg(test)]
-        let mac = if ip.is_loopback() {
-            "02:00:00:00:00:01".to_string()
-        } else {
-            arp::lookup_mac(ip).await.ok_or_else(|| {
-                warn!(%ip, "MAC lookup failed: client IP not found in ARP table");
-                AppError::BadRequest(
-                    "Unable to identify your device. Please ensure you are connected via WiFi."
-                        .to_string(),
-                )
-            })?
-        };
-
-        #[cfg(not(test))]
-        let mac = arp::lookup_mac(ip).await.ok_or_else(|| {
-            warn!(%ip, "MAC lookup failed: client IP not found in ARP table");
-            AppError::BadRequest(
-                "Unable to identify your device. Please ensure you are connected via WiFi."
-                    .to_string(),
-            )
-        })?;
-
-        Ok(ClientInfo { ip, mac })
-    }
-}
-
 /// Admin session extractor.
 ///
 /// Validates the `didicafe_admin` cookie against the in-memory session store.
@@ -94,6 +41,70 @@ impl FromRequestParts<Arc<AppState>> for AdminSession {
     }
 }
 
+/// CSRF token extractor for admin forms.
+///
+/// Synchronizer Token Pattern:
+/// 1. Token is generated and stored server-side in the session store
+/// 2. Embedded as hidden field in forms by templates
+/// 3. On POST, handler validates the submitted token against the server-side stored token
+pub struct CsrfToken(pub String);
+
+impl FromRequestParts<Arc<AppState>> for CsrfToken {
+    type Rejection = AppError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &Arc<AppState>,
+    ) -> Result<Self, Self::Rejection> {
+        let api_path = parts.uri.path().starts_with("/api/");
+        let session_id = extract_cookie(&parts.headers, ADMIN_COOKIE_NAME)
+            .ok_or(AppError::Unauthorized { api_path })?;
+
+        if !state.admin_sessions.validate(&session_id) {
+            return Err(AppError::Unauthorized { api_path });
+        }
+
+        let csrf_token = state.admin_sessions.csrf_token(&session_id);
+        Ok(CsrfToken(csrf_token))
+    }
+}
+
+/// Client network identity extracted from the HTTP connection.
+///
+/// - `ip`: The client's IP address from the TCP socket (`ConnectInfo<SocketAddr>`).
+/// - `mac`: The client's MAC address resolved from the ARP table.
+pub struct ClientInfo {
+    pub ip: IpAddr,
+    pub mac: String,
+}
+
+impl<S: Send + Sync> FromRequestParts<S> for ClientInfo {
+    type Rejection = AppError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let ConnectInfo(addr) = ConnectInfo::<SocketAddr>::from_request_parts(parts, state)
+            .await
+            .map_err(|e| {
+                warn!("failed to extract ConnectInfo: {e}");
+                AppError::Internal(anyhow::anyhow!("failed to determine client address"))
+            })?;
+
+        let ip = addr.ip();
+
+        #[cfg(test)]
+        let mac = mac_lookup_result(ip, if ip.is_loopback() {
+            Some("02:00:00:00:00:01".to_string())
+        } else {
+            arp::lookup_mac(ip).await
+        })?;
+
+        #[cfg(not(test))]
+        let mac = mac_lookup_result(ip, arp::lookup_mac(ip).await)?;
+
+        Ok(ClientInfo { ip, mac })
+    }
+}
+
 /// Extract a cookie value by name from request headers.
 ///
 /// Matches exact cookie names only — `strip_prefix("{name}=")` prevents
@@ -110,6 +121,63 @@ pub fn extract_cookie(headers: &axum::http::HeaderMap, name: &str) -> Option<Str
     }
 
     None
+}
+
+// -- Internal helpers --
+
+#[cfg(test)]
+fn mac_lookup_result(ip: IpAddr, mac: Option<String>) -> Result<String, AppError> {
+    if ip.is_loopback() {
+        return Ok("02:00:00:00:00:01".to_string());
+    }
+    validate_mac_or_err(ip, mac)
+}
+
+#[cfg(not(test))]
+fn mac_lookup_result(ip: IpAddr, mac: Option<String>) -> Result<String, AppError> {
+    validate_mac_or_err(ip, mac)
+}
+
+fn validate_mac_or_err(ip: IpAddr, mac: Option<String>) -> Result<String, AppError> {
+    let mac = mac.ok_or_else(|| {
+        warn!(%ip, "MAC lookup failed: client IP not found in ARP table");
+        AppError::BadRequest(
+            "Unable to identify your device. Please ensure you are connected via WiFi.".to_string(),
+        )
+    })?;
+
+    if !is_valid_mac(&mac) {
+        warn!(%ip, %mac, "MAC address has invalid format");
+        return Err(AppError::BadRequest(
+            "Unable to identify your device. Please ensure you are connected via WiFi.".to_string(),
+        ));
+    }
+
+    Ok(mac)
+}
+
+fn is_valid_mac(mac: &str) -> bool {
+    let bytes = mac.as_bytes();
+    if bytes.len() != 17 {
+        return false;
+    }
+    for (i, &b) in bytes.iter().enumerate() {
+        if i % 3 == 2 {
+            if b != b':' {
+                return false;
+            }
+        } else if !b.is_ascii_hexdigit() {
+            return false;
+        } else if b.is_ascii_alphabetic() && !b.is_ascii_lowercase() {
+            // Only reject uppercase letters, not digits
+            return false;
+        }
+    }
+    // Reject null and broadcast MACs
+    if mac == "00:00:00:00:00:00" || mac == "ff:ff:ff:ff:ff:ff" {
+        return false;
+    }
+    true
 }
 
 #[cfg(test)]
@@ -173,5 +241,19 @@ mod tests {
             extract_cookie(&headers, "didicafe"),
             Some("evil".to_string())
         );
+    }
+
+    #[test]
+    fn test_is_valid_mac() {
+        assert!(is_valid_mac("aa:bb:cc:dd:ee:ff"));
+        assert!(is_valid_mac("02:00:00:00:00:01"));
+        assert!(!is_valid_mac("AA:BB:CC:DD:EE:FF")); // uppercase
+        assert!(!is_valid_mac("aa:bb:cc:dd:ee")); // too short
+        assert!(!is_valid_mac("aa:bb:cc:dd:ee:ff:00")); // too long
+        assert!(!is_valid_mac("aa-bb-cc-dd-ee-ff")); // dashes
+        assert!(!is_valid_mac("not-a-mac"));
+        assert!(!is_valid_mac(""));
+        assert!(!is_valid_mac("00:00:00:00:00:00")); // null MAC
+        assert!(!is_valid_mac("ff:ff:ff:ff:ff:ff")); // broadcast MAC
     }
 }

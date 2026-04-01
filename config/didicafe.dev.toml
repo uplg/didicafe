@@ -8,7 +8,7 @@ path = "/Users/leonard/didicafe.dev.db"
 
 [admin]
 username = "admin"
-password_hash = "$argon2id$v=19$m=19456,t=2,p=1$UmHhUjxRtY3c7xV5M6xDaA$Vwia8SfxfxVLTom4LovEtY8PbJitJYDissghdMfTcSM"
+password_hash = "$argon2id$v=19$m=16384,t=2,p=1$NythOGtiOGJkNzRQQ3dJNXVma2gwZz09$jize2HIoBnQWvpxf6dTQ5QVFKXGgxr7gcPm+gJepNhw"
 
 [firewall]
 nft_path = "/usr/sbin/nft"

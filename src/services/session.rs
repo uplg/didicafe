@@ -37,7 +37,6 @@ pub async fn create_session(
 
     info!(
         session_id,
-        mac,
         duration_minutes,
         %expires_at,
         "session created"
@@ -53,12 +52,12 @@ pub async fn disconnect(state: &Arc<AppState>, session_id: i64) -> Result<()> {
 
     state.firewall.deauthorize_mac(&session.mac_address).await?;
     state.db.disconnect_session(session_id).await?;
-    info!(session_id, mac = %session.mac_address, "session disconnected");
+    info!(session_id, "session disconnected");
 
     Ok(())
 }
 
-/// Periodic cleanup: expire sessions whose time has elapsed.
+/// Periodic cleanup: expire sessions whose time has elapsed, purge old data.
 /// Called by a tokio interval task. Cancels when `shutdown` is triggered.
 pub async fn cleanup_ticker(state: Arc<AppState>, shutdown: CancellationToken) {
     let interval = state.config.session.cleanup_interval_seconds;
@@ -67,6 +66,10 @@ pub async fn cleanup_ticker(state: Arc<AppState>, shutdown: CancellationToken) {
     let mut ticker = tokio::time::interval(
         tokio::time::Duration::from_secs(interval)
     );
+
+    // Track when we last did a full purge (once per hour is enough)
+    let mut last_purge = tokio::time::Instant::now();
+    let purge_interval = tokio::time::Duration::from_secs(3600); // 1 hour
 
     loop {
         tokio::select! {
@@ -77,13 +80,21 @@ pub async fn cleanup_ticker(state: Arc<AppState>, shutdown: CancellationToken) {
             _ = ticker.tick() => {}
         }
 
+        // 1. Expire sessions whose time has elapsed
         match state.db.get_active_sessions().await {
             Ok(sessions) => {
                 for session in sessions {
                     let remaining = session.remaining_seconds();
                     if remaining <= -grace {
                         // Session has expired past the grace period — remove from firewall
-                        state.firewall.deauthorize_mac(&session.mac_address).await.ok();
+                        if let Err(e) = state.firewall.deauthorize_mac(&session.mac_address).await {
+                            warn!(
+                                session_id = session.id,
+                                mac = %session.mac_address,
+                                "deauthorize failed, will retry next cycle: {e}"
+                            );
+                            continue; // Do NOT mark as expired — client stays authorized
+                        }
                         if let Err(e) = state.db.expire_session(session.id).await {
                             warn!(session_id = session.id, "failed to expire session: {e}");
                             continue;
@@ -94,7 +105,6 @@ pub async fn cleanup_ticker(state: Arc<AppState>, shutdown: CancellationToken) {
                         }
                         info!(
                             session_id = session.id,
-                            mac = %session.mac_address,
                             "session expired (cleanup)"
                         );
                     }
@@ -103,6 +113,33 @@ pub async fn cleanup_ticker(state: Arc<AppState>, shutdown: CancellationToken) {
             Err(e) => {
                 warn!("cleanup: failed to fetch sessions: {e}");
             }
+        }
+
+        // 2. Periodic purge of old data (once per hour)
+        if last_purge.elapsed() >= purge_interval {
+            let retention = state.config.session.retention_days;
+            match state.db.purge_expired_sessions(retention).await {
+                Ok(count) if count > 0 => {
+                    info!(count, retention, "purged expired sessions");
+                }
+                Ok(_) => {}
+                Err(e) => {
+                    warn!("failed to purge expired sessions: {e}");
+                }
+            }
+
+            // Also purge old audit log entries (365 days retention)
+            match state.db.purge_audit_log(365).await {
+                Ok(count) if count > 0 => {
+                    info!(count, "purged old audit log entries");
+                }
+                Ok(_) => {}
+                Err(e) => {
+                    warn!("failed to purge audit log: {e}");
+                }
+            }
+
+            last_purge = tokio::time::Instant::now();
         }
     }
 }

@@ -34,6 +34,8 @@ pub struct AppState {
     pub firewall: Arc<dyn firewall::Firewall>,
     pub admin_sessions: services::admin_session::AdminSessionStore,
     pub rate_limiter: services::rate_limit::RateLimiter,
+    pub admin_rate_limiter: services::rate_limit::RateLimiter,
+    pub portal_csrf_store: services::csrf::PortalCsrfStore,
 }
 
 #[tokio::main]
@@ -91,7 +93,9 @@ async fn main() -> Result<()> {
             if let Err(e) = database.expire_session(session.id).await {
                 tracing::warn!(session_id = session.id, "failed to expire session: {e}");
             } else {
-                database.expire_token(session.token_id).await.ok();
+                if let Err(e) = database.expire_token(session.token_id).await {
+                    tracing::warn!(session_id = session.id, token_id = session.token_id, "failed to expire token: {e}");
+                }
                 expired_count += 1;
                 tracing::info!(session_id = session.id, "session expired during downtime");
             }
@@ -116,6 +120,8 @@ async fn main() -> Result<()> {
     );
 
     let rate_limiter = services::rate_limit::RateLimiter::new(&config.rate_limit);
+    let admin_rate_limiter = services::rate_limit::RateLimiter::new(&config.rate_limit);
+    let portal_csrf_store = services::csrf::PortalCsrfStore::new();
 
     let state = Arc::new(AppState {
         db: database,
@@ -123,6 +129,8 @@ async fn main() -> Result<()> {
         firewall: fw,
         admin_sessions,
         rate_limiter,
+        admin_rate_limiter,
+        portal_csrf_store,
     });
 
     // Cancellation token for graceful shutdown
