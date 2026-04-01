@@ -110,6 +110,7 @@ pub struct Token {
     pub redeemed_at: Option<String>,
     pub expires_at: Option<String>,
     pub duration_minutes: i64,
+    pub plan_name: String,
 }
 
 impl Token {

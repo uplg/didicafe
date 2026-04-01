@@ -116,6 +116,7 @@
             <thead>
                 <tr>
                     <th data-i18n="admin.tokens.col_name">Nom</th>
+                    <th data-i18n="admin.tokens.col_plan">Forfait</th>
                     <th data-i18n="admin.tokens.col_code">Code</th>
                     <th data-i18n="admin.tokens.col_status">Statut</th>
                 </tr>
@@ -124,6 +125,7 @@
                 {% for t in tokens %}
                 <tr>
                     <td>{% if let Some(n) = t.name %}{{ n }}{% else %}-{% endif %}</td>
+                    <td>{{ t.plan_name }}</td>
                     <td><code>{{ t.code }}</code></td>
                     <td>
                         {% if t.status == "unused" %}

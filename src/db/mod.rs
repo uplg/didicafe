@@ -13,22 +13,22 @@ use sqlx::sqlite::SqlitePoolOptions;
 
 const TOKEN_BY_CODE: &str =
     "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
-            t.redeemed_at, t.expires_at, p.duration_minutes \
+            t.redeemed_at, t.expires_at, p.duration_minutes, p.name as plan_name \
      FROM token t JOIN plan p ON t.plan_id = p.id WHERE t.code = ?1";
 
 const TOKEN_BY_ID: &str =
     "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
-            t.redeemed_at, t.expires_at, p.duration_minutes \
+            t.redeemed_at, t.expires_at, p.duration_minutes, p.name as plan_name \
      FROM token t JOIN plan p ON t.plan_id = p.id WHERE t.id = ?1";
 
 const TOKEN_LIST: &str =
     "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
-            t.redeemed_at, t.expires_at, p.duration_minutes \
+            t.redeemed_at, t.expires_at, p.duration_minutes, p.name as plan_name \
      FROM token t JOIN plan p ON t.plan_id = p.id ORDER BY t.created_at DESC";
 
 const TOKEN_LIST_BY_STATUS: &str =
     "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
-            t.redeemed_at, t.expires_at, p.duration_minutes \
+            t.redeemed_at, t.expires_at, p.duration_minutes, p.name as plan_name \
      FROM token t JOIN plan p ON t.plan_id = p.id WHERE t.status = ?1 ORDER BY t.created_at DESC";
 
 const SESSION_ACTIVE: &str =

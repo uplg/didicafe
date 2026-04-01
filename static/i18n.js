@@ -78,6 +78,7 @@ const TRANSLATIONS = {
     "admin.tokens.generated": "Code naorina",
     "admin.tokens.all": "Code rehetra",
     "admin.tokens.col_name": "Anarana",
+    "admin.tokens.col_plan": "Drafitra",
     "admin.tokens.col_code": "Code",
     "admin.tokens.col_status": "Sata",
     "admin.tokens.col_created": "Naorina",
@@ -139,6 +140,10 @@ const TRANSLATIONS = {
     "status.unused": "mbola tsy nampiasaina",
     "status.expired": "tapitra",
     "status.revoked": "nesorina",
+
+    // -- Polling notifications --
+    "notify.activated": "Code %s lasa mandeha",
+    "notify.expired": "Code %s tapitra",
 
     // -- Privacy --
     "privacy.title": "Mombamomba ny tsiambaratelo",
@@ -223,6 +228,7 @@ const TRANSLATIONS = {
     "admin.tokens.generated": "Codes générés",
     "admin.tokens.all": "Codes courants",
     "admin.tokens.col_name": "Nom",
+    "admin.tokens.col_plan": "Forfait",
     "admin.tokens.col_code": "Code",
     "admin.tokens.col_status": "Statut",
     "admin.tokens.col_created": "Créé le",
@@ -284,6 +290,10 @@ const TRANSLATIONS = {
     "status.unused": "non utilisé",
     "status.expired": "expiré",
     "status.revoked": "révoqué",
+
+    // -- Polling notifications --
+    "notify.activated": "Code %s activé",
+    "notify.expired": "Code %s expiré",
 
     // -- Privacy --
     "privacy.title": "Confidentialité",
@@ -368,6 +378,7 @@ const TRANSLATIONS = {
     "admin.tokens.generated": "Generated tokens",
     "admin.tokens.all": "All Tokens",
     "admin.tokens.col_name": "Name",
+    "admin.tokens.col_plan": "Plan",
     "admin.tokens.col_code": "Code",
     "admin.tokens.col_status": "Status",
     "admin.tokens.col_created": "Created",
@@ -429,6 +440,10 @@ const TRANSLATIONS = {
     "status.unused": "unused",
     "status.expired": "expired",
     "status.revoked": "revoked",
+
+    // -- Polling notifications --
+    "notify.activated": "Code %s activated",
+    "notify.expired": "Code %s expired",
 
     // -- Privacy --
     "privacy.title": "Privacy",
