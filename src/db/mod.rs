@@ -118,6 +118,17 @@ impl Database {
         Ok(plans)
     }
 
+    /// List only active plans, ordered by duration. Used by the public plans page.
+    pub async fn list_active_plans(&self) -> Result<Vec<Plan>> {
+        let plans = sqlx::query_as::<_, Plan>(
+            "SELECT id, name, duration_minutes, price_ariary, active, created_at \
+             FROM plan WHERE active = 1 ORDER BY duration_minutes",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(plans)
+    }
+
     pub async fn create_plan(
         &self,
         name: &str,
@@ -676,5 +687,33 @@ mod tests {
         assert_eq!(stats.tokens_sold, 0);
         assert_eq!(stats.active_sessions, 0);
         assert_eq!(stats.revenue_ariary, 0);
+    }
+
+    // -- list_active_plans --
+
+    #[tokio::test]
+    async fn test_list_active_plans() {
+        let db = test_db().await;
+
+        // Create plans: two active, one inactive
+        db.create_plan("30min WiFi", 30, 500).await.unwrap();
+        db.create_plan("1h WiFi", 60, 1000).await.unwrap();
+        let id3 = db.create_plan("2h WiFi", 120, 2000).await.unwrap();
+        db.update_plan(id3, "2h WiFi", 120, 2000, false).await.unwrap();
+
+        let active = db.list_active_plans().await.unwrap();
+        assert_eq!(active.len(), 2);
+        // Ordered by duration_minutes ASC
+        assert_eq!(active[0].name, "30min WiFi");
+        assert_eq!(active[1].name, "1h WiFi");
+        // All returned plans are active
+        assert!(active.iter().all(|p| p.active));
+    }
+
+    #[tokio::test]
+    async fn test_list_active_plans_empty() {
+        let db = test_db().await;
+        let active = db.list_active_plans().await.unwrap();
+        assert!(active.is_empty());
     }
 }

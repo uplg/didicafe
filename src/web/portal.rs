@@ -10,11 +10,47 @@ use askama::Template;
 use serde::{Deserialize, Serialize};
 
 use crate::AppState;
+use crate::db::Plan;
 use crate::services;
 use crate::services::rate_limit::RateLimitResult;
 use crate::services::token::TokenLookup;
 use super::error::{AppError, render};
 use super::extractors::ClientInfo;
+
+// -- Custom Askama filters --
+
+/// Format an integer as a thousands-grouped Ariary string.
+/// Uses narrow no-break space (U+202F) as the grouping separator (French style).
+/// e.g. 10000 → "10 000", 500 → "500"
+fn format_ariary(s: &str) -> String {
+    // Only format if purely digits (possibly with leading minus)
+    let (sign, digits) = if let Some(rest) = s.strip_prefix('-') {
+        ("-", rest)
+    } else {
+        ("", s)
+    };
+    if digits.is_empty() || !digits.chars().all(|c| c.is_ascii_digit()) {
+        return s.to_string();
+    }
+    let mut result = String::with_capacity(digits.len() + digits.len() / 3);
+    for (i, ch) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i) % 3 == 0 {
+            result.push('\u{202f}'); // narrow no-break space
+        }
+        result.push(ch);
+    }
+    format!("{sign}{result}")
+}
+
+mod filters {
+    #[askama::filter_fn]
+    pub fn fmt_ariary(
+        value: impl std::fmt::Display,
+        _env: &dyn askama::Values,
+    ) -> askama::Result<String> {
+        Ok(super::format_ariary(&value.to_string()))
+    }
+}
 
 // -- Templates --
 
@@ -39,6 +75,16 @@ struct ExpiredTemplate;
 #[template(path = "privacy.html")]
 struct PrivacyTemplate;
 
+#[derive(Template)]
+#[template(path = "plans.html")]
+struct PlansTemplate {
+    plans: Vec<Plan>,
+    cafe_name: String,
+    contact_phone: String,
+    contact_name: String,
+    contact_hours: String,
+}
+
 // -- Form --
 
 #[derive(Deserialize)]
@@ -58,6 +104,7 @@ pub fn routes() -> Router<Arc<AppState>> {
         .route("/portal/expired", get(expired_page))
         .route("/portal/status", get(portal_status))
         .route("/portal/privacy", get(privacy_page))
+        .route("/portal/plans", get(plans_page))
 }
 
 /// GET /health -- health check for process supervision
@@ -223,6 +270,22 @@ async fn portal_status(
 /// GET /portal/privacy — privacy notice
 async fn privacy_page() -> Result<impl IntoResponse, AppError> {
     render(&PrivacyTemplate)
+}
+
+/// GET /portal/plans — public page listing active plans and contact info
+async fn plans_page(
+    State(state): State<Arc<AppState>>,
+) -> Result<impl IntoResponse, AppError> {
+    let plans = state.db.list_active_plans().await
+        .map_err(AppError::Internal)?;
+    let portal = &state.config.portal;
+    render(&PlansTemplate {
+        plans,
+        cafe_name: portal.cafe_name.clone(),
+        contact_phone: portal.contact_phone.clone(),
+        contact_name: portal.contact_name.clone(),
+        contact_hours: portal.contact_hours.clone(),
+    })
 }
 
 // -- Shared helpers --
@@ -498,5 +561,90 @@ mod tests {
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let html = String::from_utf8_lossy(&body);
         assert!(html.contains("portal.error.invalid"));
+    }
+
+    // -- Plans page tests --
+
+    #[tokio::test]
+    async fn test_plans_page_returns_200() {
+        let state = test_state().await;
+        let app = portal_router(state);
+
+        let response = app.oneshot(test_get("/portal/plans")).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let html = String::from_utf8_lossy(&body);
+        assert!(html.contains("plans.title"));
+    }
+
+    #[tokio::test]
+    async fn test_plans_page_shows_active_plans() {
+        let state = test_state().await;
+
+        // Create two active plans and one inactive
+        state.db.create_plan("30min WiFi", 30, 500).await.unwrap();
+        state.db.create_plan("1h WiFi", 60, 1000).await.unwrap();
+        let id3 = state.db.create_plan("2h WiFi", 120, 2000).await.unwrap();
+        state.db.update_plan(id3, "2h WiFi", 120, 2000, false).await.unwrap();
+
+        let app = portal_router(Arc::clone(&state));
+        let response = app.oneshot(test_get("/portal/plans")).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let html = String::from_utf8_lossy(&body);
+        // Active plans appear
+        assert!(html.contains("30min WiFi"));
+        assert!(html.contains("1h WiFi"));
+        // Inactive plan does NOT appear
+        assert!(!html.contains("2h WiFi"));
+        // Price is formatted with Ariary suffix
+        assert!(html.contains("Ar"));
+    }
+
+    #[tokio::test]
+    async fn test_plans_page_empty() {
+        let state = test_state().await;
+        let app = portal_router(state);
+
+        let response = app.oneshot(test_get("/portal/plans")).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let html = String::from_utf8_lossy(&body);
+        // Should show the "no plans" message
+        assert!(html.contains("plans.no_plans"));
+    }
+
+    // -- fmt_ariary / format_ariary unit tests --
+
+    #[test]
+    fn test_format_ariary_basic() {
+        // Small number — no grouping
+        assert_eq!(super::format_ariary("500"), "500");
+
+        // Thousands grouping with narrow no-break space
+        assert_eq!(super::format_ariary("1000"), "1\u{202f}000");
+        assert_eq!(super::format_ariary("10000"), "10\u{202f}000");
+        assert_eq!(super::format_ariary("100000"), "100\u{202f}000");
+        assert_eq!(super::format_ariary("1000000"), "1\u{202f}000\u{202f}000");
+
+        // Zero
+        assert_eq!(super::format_ariary("0"), "0");
+
+        // Negative number
+        assert_eq!(super::format_ariary("-5000"), "-5\u{202f}000");
+
+        // Non-numeric string passed through as-is
+        assert_eq!(super::format_ariary("hello"), "hello");
+
+        // Empty string
+        assert_eq!(super::format_ariary(""), "");
+
+        // Single digit
+        assert_eq!(super::format_ariary("7"), "7");
+
+        // Exact boundary (3 digits — no separator needed)
+        assert_eq!(super::format_ariary("999"), "999");
     }
 }

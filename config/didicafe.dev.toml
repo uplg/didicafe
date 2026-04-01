@@ -10,6 +10,20 @@ path = "/Users/leonard/didicafe.dev.db"
 username = "admin"
 password_hash = "$argon2id$v=19$m=16384,t=2,p=1$NythOGtiOGJkNzRQQ3dJNXVma2gwZz09$jize2HIoBnQWvpxf6dTQ5QVFKXGgxr7gcPm+gJepNhw"
 
+[portal]
+domain = "localhost"
+admin_domain = "admin.localhost"
+cafe_name = "DidiCafe Dev"
+theme_color = "#b45309"
+contact_name = "Didi"
+contact_phone = "+261 34 00 000 00"
+contact_hours = "Lundi–Samedi 7h–21h"
+
+[tls]
+# TLS disabled in dev — admin served on the HTTP listener (combined mode)
+enabled = false
+admin_port = 443
+
 [firewall]
 nft_path = "/usr/sbin/nft"
 table_name = "didicafe"

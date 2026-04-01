@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Parser;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
@@ -131,6 +131,9 @@ async fn main() -> Result<()> {
     let portal_csrf_store = services::csrf::PortalCsrfStore::new();
     let login_csrf_store = services::csrf::PortalCsrfStore::new();
 
+    let tls_enabled = config.tls.enabled;
+    let admin_port = config.tls.admin_port;
+
     let state = Arc::new(AppState {
         db: database,
         config: config.clone(),
@@ -152,28 +155,185 @@ async fn main() -> Result<()> {
         services::session::cleanup_ticker(cleanup_state, cleanup_shutdown).await;
     });
 
-    // Build and serve HTTP
-    let app = web::router(Arc::clone(&state));
-    let addr = format!("{}:{}", config.server.listen, config.server.port);
-    let listener = tokio::net::TcpListener::bind(&addr).await?;
-    info!("listening on {addr}");
+    let http_addr = format!("{}:{}", config.server.listen, config.server.port);
 
-    // Wait for SIGTERM/SIGINT then gracefully shut down
-    let shutdown_signal = tokio::signal::ctrl_c();
-    let server = axum::serve(
-        listener,
-        app.into_make_service_with_connect_info::<SocketAddr>(),
-    );
+    if tls_enabled {
+        // Dual-listener mode: HTTP (portal) + HTTPS (admin)
+        let portal_app = web::portal_router(Arc::clone(&state));
+        let admin_app = web::admin_router(Arc::clone(&state));
 
-    tokio::select! {
-        result = server => {
-            result?;
-        }
-        _ = shutdown_signal => {
-            info!("shutdown signal received, draining...");
-            shutdown.cancel();
+        let portal_listener = tokio::net::TcpListener::bind(&http_addr).await?;
+        info!("portal (HTTP) listening on {http_addr}");
+
+        let admin_addr = format!("{}:{}", config.server.listen, admin_port);
+        let tls_acceptor = build_tls_acceptor(&config.tls)?;
+        let admin_listener = tokio::net::TcpListener::bind(&admin_addr).await?;
+        info!("admin (HTTPS) listening on {admin_addr}");
+
+        // Spawn the portal HTTP server
+        let portal_shutdown = shutdown.clone();
+        let portal_handle = tokio::spawn(async move {
+            let server = axum::serve(
+                portal_listener,
+                portal_app.into_make_service_with_connect_info::<SocketAddr>(),
+            )
+            .with_graceful_shutdown(portal_shutdown.cancelled_owned());
+            if let Err(e) = server.await {
+                tracing::error!("portal server error: {e}");
+            }
+        });
+
+        // Spawn the admin HTTPS server (TLS connection loop)
+        let admin_shutdown = shutdown.clone();
+        let admin_handle = tokio::spawn(async move {
+            serve_tls(admin_listener, tls_acceptor, admin_app, admin_shutdown).await;
+        });
+
+        // Wait for shutdown signal
+        tokio::signal::ctrl_c().await?;
+        info!("shutdown signal received, draining...");
+        shutdown.cancel();
+
+        // Wait for both servers to finish
+        let _ = tokio::join!(portal_handle, admin_handle);
+    } else {
+        // Single-listener mode: all routes on one HTTP listener (dev mode)
+        let app = web::combined_router(Arc::clone(&state));
+        let listener = tokio::net::TcpListener::bind(&http_addr).await?;
+        info!("listening on {http_addr} (combined mode, TLS disabled)");
+
+        let shutdown_signal = tokio::signal::ctrl_c();
+        let server = axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<SocketAddr>(),
+        );
+
+        tokio::select! {
+            result = server => {
+                result?;
+            }
+            _ = shutdown_signal => {
+                info!("shutdown signal received, draining...");
+                shutdown.cancel();
+            }
         }
     }
 
     Ok(())
+}
+
+/// Build a `tokio_rustls::TlsAcceptor` from the TLS config.
+///
+/// Loads PEM certificate chain and private key from disk.
+/// Uses rustls with safe defaults (TLS 1.2+, strong cipher suites).
+fn build_tls_acceptor(tls_config: &config::TlsConfig) -> Result<tokio_rustls::TlsAcceptor> {
+    use rustls_pemfile::{certs, private_key};
+    use std::fs::File;
+    use std::io::BufReader;
+    use tokio_rustls::rustls::ServerConfig;
+
+    // Load certificate chain
+    let cert_file = File::open(&tls_config.cert_path)
+        .with_context(|| format!("failed to open TLS cert: {}", tls_config.cert_path))?;
+    let cert_chain: Vec<_> = certs(&mut BufReader::new(cert_file))
+        .collect::<Result<Vec<_>, _>>()
+        .with_context(|| format!("failed to parse TLS cert: {}", tls_config.cert_path))?;
+    anyhow::ensure!(!cert_chain.is_empty(), "TLS cert file contains no certificates");
+
+    // Load private key
+    let key_file = File::open(&tls_config.key_path)
+        .with_context(|| format!("failed to open TLS key: {}", tls_config.key_path))?;
+    let key = private_key(&mut BufReader::new(key_file))
+        .with_context(|| format!("failed to parse TLS key: {}", tls_config.key_path))?
+        .ok_or_else(|| anyhow::anyhow!("TLS key file contains no private key: {}", tls_config.key_path))?;
+
+    let server_config = ServerConfig::builder()
+        .with_no_client_auth()
+        .with_single_cert(cert_chain, key)
+        .context("failed to build TLS server config")?;
+
+    Ok(tokio_rustls::TlsAcceptor::from(Arc::new(server_config)))
+}
+
+/// Accept TLS connections and serve the admin router.
+///
+/// Runs a loop accepting TCP connections, performing TLS handshake,
+/// and dispatching to the axum router via `hyper`. Each connection
+/// is handled in its own tokio task.
+async fn serve_tls(
+    listener: tokio::net::TcpListener,
+    acceptor: tokio_rustls::TlsAcceptor,
+    app: axum::Router,
+    shutdown: CancellationToken,
+) {
+    use hyper_util::rt::TokioIo;
+    use tower::Service;
+
+    loop {
+        tokio::select! {
+            result = listener.accept() => {
+                let (tcp_stream, remote_addr) = match result {
+                    Ok(conn) => conn,
+                    Err(e) => {
+                        tracing::warn!("admin listener accept error: {e}");
+                        continue;
+                    }
+                };
+
+                let acceptor = acceptor.clone();
+                let app = app.clone();
+                let conn_shutdown = shutdown.clone();
+
+                tokio::spawn(async move {
+                    // TLS handshake with timeout (prevent slowloris)
+                    let tls_stream = match tokio::time::timeout(
+                        std::time::Duration::from_secs(10),
+                        acceptor.accept(tcp_stream),
+                    ).await {
+                        Ok(Ok(stream)) => stream,
+                        Ok(Err(e)) => {
+                            tracing::debug!(%remote_addr, "TLS handshake failed: {e}");
+                            return;
+                        }
+                        Err(_) => {
+                            tracing::debug!(%remote_addr, "TLS handshake timed out");
+                            return;
+                        }
+                    };
+
+                    // Serve HTTP over the TLS stream
+                    let io = TokioIo::new(tls_stream);
+                    let hyper_service = hyper::service::service_fn(move |mut req: hyper::Request<hyper::body::Incoming>| {
+                        // Inject ConnectInfo so extractors can access the client address
+                        req.extensions_mut().insert(axum::extract::ConnectInfo(remote_addr));
+                        let mut svc = app.clone();
+                        async move {
+                            svc.call(req).await
+                        }
+                    });
+
+                    let conn = hyper_util::server::conn::auto::Builder::new(
+                        hyper_util::rt::TokioExecutor::new(),
+                    )
+                    .serve_connection(io, hyper_service)
+                    .into_owned();
+
+                    tokio::select! {
+                        result = conn => {
+                            if let Err(e) = result {
+                                tracing::debug!(%remote_addr, "admin connection error: {e}");
+                            }
+                        }
+                        _ = conn_shutdown.cancelled() => {
+                            tracing::debug!(%remote_addr, "admin connection shutdown");
+                        }
+                    }
+                });
+            }
+            _ = shutdown.cancelled() => {
+                info!("admin HTTPS listener shutting down");
+                break;
+            }
+        }
+    }
 }

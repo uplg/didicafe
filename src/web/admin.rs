@@ -57,17 +57,19 @@ async fn verify_password(password: &str, hash: &str) -> bool {
 /// - `HttpOnly`: prevents JavaScript access (XSS mitigation)
 /// - `SameSite=Strict`: prevents CSRF via cross-site requests
 /// - `Path=/`: required for both /admin and /api paths
-/// - `Secure`: omitted — the captive portal runs over HTTP on a local network
-fn session_cookie(session_id: &str) -> String {
+/// - `Secure`: set when TLS is enabled (admin served over HTTPS)
+fn session_cookie(session_id: &str, tls_enabled: bool) -> String {
+    let secure = if tls_enabled { "; Secure" } else { "" };
     format!(
-        "{ADMIN_COOKIE_NAME}={session_id}; HttpOnly; SameSite=Strict; Path=/"
+        "{ADMIN_COOKIE_NAME}={session_id}; HttpOnly; SameSite=Strict; Path=/{secure}"
     )
 }
 
 /// Build a Set-Cookie header that clears the admin session cookie.
-fn clear_session_cookie() -> String {
+fn clear_session_cookie(tls_enabled: bool) -> String {
+    let secure = if tls_enabled { "; Secure" } else { "" };
     format!(
-        "{ADMIN_COOKIE_NAME}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0"
+        "{ADMIN_COOKIE_NAME}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0{secure}"
     )
 }
 
@@ -236,7 +238,7 @@ async fn login_submit(
         }
 
         let session_id = state.admin_sessions.create();
-        let cookie = session_cookie(&session_id);
+        let cookie = session_cookie(&session_id, state.config.tls.enabled);
         Ok((
             AppendHeaders([(SET_COOKIE, cookie)]),
             Redirect::to("/admin"),
@@ -267,7 +269,7 @@ async fn logout(
     }
 
     Ok((
-        AppendHeaders([(SET_COOKIE, clear_session_cookie())]),
+        AppendHeaders([(SET_COOKIE, clear_session_cookie(state.config.tls.enabled))]),
         Redirect::to("/admin/login"),
     ))
 }
@@ -453,17 +455,33 @@ mod tests {
 
     #[test]
     fn test_session_cookie_format() {
-        let cookie = session_cookie("test-session-id");
+        let cookie = session_cookie("test-session-id", false);
         assert!(cookie.contains("didicafe_admin=test-session-id"));
         assert!(cookie.contains("HttpOnly"));
         assert!(cookie.contains("SameSite=Strict"));
+        assert!(!cookie.contains("Secure"));
+    }
+
+    #[test]
+    fn test_session_cookie_secure_flag() {
+        let cookie = session_cookie("test-session-id", true);
+        assert!(cookie.contains("didicafe_admin=test-session-id"));
+        assert!(cookie.contains("Secure"));
     }
 
     #[test]
     fn test_clear_cookie_format() {
-        let cookie = clear_session_cookie();
+        let cookie = clear_session_cookie(false);
         assert!(cookie.contains("didicafe_admin="));
         assert!(cookie.contains("Max-Age=0"));
         assert!(cookie.contains("HttpOnly"));
+        assert!(!cookie.contains("Secure"));
+    }
+
+    #[test]
+    fn test_clear_cookie_secure_flag() {
+        let cookie = clear_session_cookie(true);
+        assert!(cookie.contains("Max-Age=0"));
+        assert!(cookie.contains("Secure"));
     }
 }

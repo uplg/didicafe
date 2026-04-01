@@ -8,15 +8,17 @@ pub mod cpd;
 pub use error::AppError;
 
 use std::collections::BTreeMap;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use axum::{Router, response::Redirect, routing::any};
 use axum::middleware::{self, Next};
 use axum::http::HeaderValue;
-use axum::response::Response;
-use axum::extract::Request;
+use axum::response::{IntoResponse, Response};
+use axum::extract::{ConnectInfo, Request, State};
 use tower_http::services::ServeDir;
 
 use crate::AppState;
+use crate::config::ip_in_cidr;
 
 /// An i18n message with a key and optional named interpolation arguments.
 ///
@@ -132,10 +134,102 @@ async fn security_headers(request: Request, next: Next) -> Response {
     response
 }
 
-pub fn router(state: Arc<AppState>) -> Router {
-    // Resolve static files directory relative to the config file's parent directory,
-    // or fall back to the executable's directory. This ensures static files are found
-    // regardless of the daemon's working directory (important for systemd/OpenRC services).
+/// HSTS header middleware for the admin HTTPS listener.
+///
+/// Tells browsers to always use HTTPS for this host:port combination.
+/// `max-age=63072000` = 2 years. No `includeSubDomains` since this is a
+/// single local domain.
+async fn hsts_header(request: Request, next: Next) -> Response {
+    let mut response = next.run(request).await;
+    response.headers_mut().insert(
+        "Strict-Transport-Security",
+        HeaderValue::from_static("max-age=63072000"),
+    );
+    response
+}
+
+/// Admin IP allowlist middleware.
+///
+/// If `admin.allowed_networks` is configured (non-empty), only IPs within
+/// those CIDR ranges can access the admin router. Returns 403 otherwise.
+/// If the list is empty, all IPs are accepted (default).
+async fn admin_network_filter(
+    State(state): State<Arc<AppState>>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    request: Request,
+    next: Next,
+) -> Response {
+    let allowed = &state.config.admin.allowed_networks;
+
+    if !allowed.is_empty() {
+        let client_ip = addr.ip();
+        let is_allowed = allowed.iter().any(|cidr| ip_in_cidr(client_ip, cidr));
+        if !is_allowed {
+            tracing::warn!(%client_ip, "admin access denied: IP not in allowed_networks");
+            return (
+                axum::http::StatusCode::FORBIDDEN,
+                "access denied",
+            ).into_response();
+        }
+    }
+
+    next.run(request).await
+}
+
+/// Build the portal-only router (HTTP listener).
+///
+/// Contains public captive portal routes, CPD probes, static files, and
+/// a catch-all redirect to `/portal`. Does NOT include `/admin/*` or `/api/*`.
+pub fn portal_router(state: Arc<AppState>) -> Router {
+    let static_dir = resolve_static_dir();
+
+    Router::new()
+        // Public captive portal routes
+        .merge(portal::routes())
+        // CPD (Captive Portal Detection) probe handlers
+        .merge(cpd::routes())
+        // Static files (CSS, JS, favicon, etc.)
+        .nest_service("/static", ServeDir::new(static_dir))
+        // Catch-all: any unmatched route redirects to the portal.
+        // This handles CPD probes from less common OSes and any
+        // stray HTTP requests DNATed by nftables.
+        .fallback(any(|| async { Redirect::to("/portal") }))
+        // Security headers on all responses
+        .layer(middleware::from_fn(security_headers))
+        .with_state(state)
+}
+
+/// Build the admin-only router (HTTPS listener when TLS is enabled).
+///
+/// Contains admin UI routes, REST API routes, and static files.
+/// Does NOT include portal routes or CPD probes.
+/// Includes HSTS header and optional IP allowlist middleware.
+pub fn admin_router(state: Arc<AppState>) -> Router {
+    let static_dir = resolve_static_dir();
+
+    Router::new()
+        // Admin UI routes
+        .merge(admin::routes())
+        // REST API routes
+        .merge(api::routes())
+        // Static files (CSS, JS needed by admin pages)
+        .nest_service("/static", ServeDir::new(static_dir))
+        // Catch-all: redirect to admin login
+        .fallback(any(|| async { Redirect::to("/admin/login") }))
+        // Admin IP allowlist (runs before request processing)
+        .layer(middleware::from_fn_with_state(Arc::clone(&state), admin_network_filter))
+        // HSTS header (only on the HTTPS listener)
+        .layer(middleware::from_fn(hsts_header))
+        // Security headers on all responses
+        .layer(middleware::from_fn(security_headers))
+        .with_state(state)
+}
+
+/// Build a combined router serving both portal and admin (dev mode / TLS disabled).
+///
+/// This is the current behavior: all routes on a single listener.
+/// Used when `tls.enabled = false` in the config.
+pub fn combined_router(state: Arc<AppState>) -> Router {
     let static_dir = resolve_static_dir();
 
     Router::new()
@@ -150,8 +244,6 @@ pub fn router(state: Arc<AppState>) -> Router {
         // Static files (CSS, JS, favicon, etc.)
         .nest_service("/static", ServeDir::new(static_dir))
         // Catch-all: any unmatched route redirects to the portal.
-        // This handles CPD probes from less common OSes and any
-        // stray HTTP requests DNATed by nftables.
         .fallback(any(|| async { Redirect::to("/portal") }))
         // Security headers on all responses
         .layer(middleware::from_fn(security_headers))

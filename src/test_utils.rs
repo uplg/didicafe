@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use crate::AppState;
 use crate::config::{
-    AdminConfig, Config, DatabaseConfig, FirewallConfig,
-    RateLimitConfig, ServerConfig, SessionConfig, TokenConfig,
+    AdminConfig, Config, DatabaseConfig, FirewallConfig, PortalConfig,
+    RateLimitConfig, ServerConfig, SessionConfig, TlsConfig, TokenConfig,
 };
 use crate::db::Database;
 use crate::firewall::MockFirewall;
@@ -27,6 +27,7 @@ pub fn test_config() -> Config {
             username: "admin".to_string(),
             password_hash: "$argon2id$v=19$m=19456,t=2,p=1$salt$hash".to_string(),
             session_timeout_seconds: 3600,
+            allowed_networks: vec![],
         },
         firewall: FirewallConfig {
             nft_path: "/usr/sbin/nft".to_string(),
@@ -50,6 +51,8 @@ pub fn test_config() -> Config {
             retention_days: 90,
             audit_retention_days: 365,
         },
+        portal: PortalConfig::default(),
+        tls: TlsConfig::default(),
     }
 }
 

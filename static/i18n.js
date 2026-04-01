@@ -195,6 +195,20 @@ const TRANSLATIONS = {
     "privacy.back": "Hiverina",
     "portal.privacy": "Mifandray, ny MAC-nao sy IP-nao dia voatahirizy mandritra ny session-nao.",
     "portal.privacy_link": "Hahalala bebe kokoa",
+    "portal.see_plans": "Jereo ny drafitra sy ny vidiny",
+
+    // -- Plans (public) --
+    "plans.title": "Drafitra WiFi",
+    "plans.subtitle": "Misafidiana ny drafitra mety aminao",
+    "plans.no_plans": "Tsy misy drafitra aloha.",
+    "plans.hours": "{{count}} ora",
+    "plans.minutes": "{{count}} minitra",
+    "plans.hours_minutes": "{{hours}}h{{minutes}}min",
+    "plans.contact_title": "Fifandraisana",
+    "plans.contact_name": "Tompon'ny:",
+    "plans.contact_phone": "Finday:",
+    "plans.contact_hours": "Ora fiasana:",
+    "plans.back": "Hiverina",
   },
 
   fr: {
@@ -376,6 +390,20 @@ const TRANSLATIONS = {
     "privacy.back": "Retour",
     "portal.privacy": "En vous connectant, votre MAC et IP sont stockés pour la durée de votre session.",
     "portal.privacy_link": "En savoir plus",
+    "portal.see_plans": "Voir les forfaits et tarifs",
+
+    // -- Plans (public) --
+    "plans.title": "Forfaits WiFi",
+    "plans.subtitle": "Choisissez le forfait qui vous convient",
+    "plans.no_plans": "Aucun forfait disponible pour le moment.",
+    "plans.hours": "{{count}} heure(s)",
+    "plans.minutes": "{{count}} minute(s)",
+    "plans.hours_minutes": "{{hours}}h{{minutes}}min",
+    "plans.contact_title": "Contact",
+    "plans.contact_name": "Gérant :",
+    "plans.contact_phone": "Téléphone :",
+    "plans.contact_hours": "Horaires :",
+    "plans.back": "Retour",
   },
 
   en: {
@@ -557,6 +585,20 @@ const TRANSLATIONS = {
     "privacy.back": "Back",
     "portal.privacy": "By connecting, your MAC and IP are stored for the duration of your session.",
     "portal.privacy_link": "Learn more",
+    "portal.see_plans": "View plans and pricing",
+
+    // -- Plans (public) --
+    "plans.title": "WiFi Plans",
+    "plans.subtitle": "Choose the plan that suits you",
+    "plans.no_plans": "No plans available at the moment.",
+    "plans.hours": "{{count}} hour(s)",
+    "plans.minutes": "{{count}} minute(s)",
+    "plans.hours_minutes": "{{hours}}h{{minutes}}min",
+    "plans.contact_title": "Contact",
+    "plans.contact_name": "Manager:",
+    "plans.contact_phone": "Phone:",
+    "plans.contact_hours": "Hours:",
+    "plans.back": "Back",
   },
 };
 

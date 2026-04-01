@@ -30,6 +30,12 @@ rand = "0.10"
 argon2 = { version = "0.5", features = ["std"] }
 subtle = "2"
 
+# TLS (admin HTTPS listener)
+tokio-rustls = "0.26"
+rustls-pemfile = "2"
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio", "server-auto", "service"] }
+
 # Time
 chrono = { version = "0.4", features = ["serde"] }
 

@@ -12,6 +12,25 @@ username = "admin"
 # Argon2id (OWASP recommended) — m=19456 (19 MiB), t=2, p=1
 # Generate with: cargo test test_argon2id_hash_and_verify -- --nocapture
 password_hash = "$argon2id$v=19$m=19456,t=2,p=1$UmHhUjxRtY3c7xV5M6xDaA$Vwia8SfxfxVLTom4LovEtY8PbJitJYDissghdMfTcSM"
+# Optional: restrict admin access to specific networks (CIDR notation).
+# If empty or omitted, all IPs are accepted.
+# allowed_networks = ["10.10.0.0/24"]
+
+[portal]
+domain = "didicafe.local"
+admin_domain = "admin.didicafe.local"
+cafe_name = "DidiCafe"
+# welcome_message = "Tongasoa! Bienvenue!"
+theme_color = "#b45309"
+# contact_phone = "+261 34 XX XXX XX"
+# contact_name = "Didi"
+# contact_hours = "Lun-Sam 7h-20h"
+
+[tls]
+enabled = true
+cert_path = "/opt/didicafe/certs/server.pem"
+key_path = "/opt/didicafe/certs/server-key.pem"
+admin_port = 443
 
 [firewall]
 nft_path = "/usr/sbin/nft"
