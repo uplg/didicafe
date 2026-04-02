@@ -91,11 +91,11 @@ function rebuildSessionsTable(sessions) {
         return;
     }
     var html = '<div class="table-wrap"><table><thead><tr>' +
-        '<th>Code</th>' +
+        '<th data-i18n="admin.dash.col_code">' + t("admin.dash.col_code") + '</th>' +
         '<th data-i18n="admin.dash.col_mac">' + t("admin.dash.col_mac") + '</th>' +
         '<th data-i18n="admin.dash.col_ip">' + t("admin.dash.col_ip") + '</th>' +
         '<th data-i18n="admin.dash.col_remaining">' + t("admin.dash.col_remaining") + '</th>' +
-        '<th><span class="sr-only">Actions</span></th>' +
+        '<th><span class="sr-only" data-i18n="admin.common.actions">' + t("admin.common.actions") + '</span></th>' +
         '</tr></thead><tbody>';
     sessions.forEach(function(s) {
         var code = s.token_code || "";
@@ -106,7 +106,7 @@ function rebuildSessionsTable(sessions) {
             '<td><code>' + escHtml(s.mac_address) + '</code></td>' +
             '<td>' + escHtml(s.ip_address) + '</td>' +
             '<td>' + remaining + ' min</td>' +
-            '<td><button type="button" class="btn btn--danger btn--sm" data-i18n="admin.dash.disconnect" data-disconnect="' + s.id + '" aria-label="Disconnect session ' + s.id + '">' + t("admin.dash.disconnect") + '</button></td>' +
+            '<td><button type="button" class="btn btn--danger btn--sm" data-i18n="admin.dash.disconnect" data-disconnect="' + s.id + '" data-i18n-aria="admin.dash.disconnect">' + t("admin.dash.disconnect") + '</button></td>' +
             '</tr>';
     });
     html += '</tbody></table></div>';
@@ -295,7 +295,7 @@ function setupChartTooltip(wrap, days, revenues, tokens, xPos) {
             tooltip.innerHTML =
                 '<div class="chart-tooltip-date">' + escHtml(day.date) + '</div>' +
                 '<div class="chart-tooltip-row"><span class="chart-tooltip-dot" style="background:var(--c-primary)"></span>' + day.revenue_ariary + ' Ar</div>' +
-                '<div class="chart-tooltip-row"><span class="chart-tooltip-dot" style="background:var(--c-success)"></span>' + day.tokens_sold + ' codes</div>';
+                '<div class="chart-tooltip-row"><span class="chart-tooltip-dot" style="background:var(--c-success)"></span>' + day.tokens_sold + ' ' + t("admin.dash.chart_tokens") + '</div>';
 
             // Position tooltip above the chart column
             var svgEl = wrap.querySelector("svg");

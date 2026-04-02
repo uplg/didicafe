@@ -1,77 +1,55 @@
 {% extends "base.html" %}
 
-{% block title %}{{ cafe_name }} — Fiainana manokana{% endblock %}
+{% block title %}{{ cafe_name }}{% endblock %}
 {% block theme_css %}{{ theme_css }}{% endblock %}
 
 {% block body %}
 <main class="container" role="main">
     <div class="card">
-        <h1 data-i18n="privacy.title">Fiainana manokana</h1>
+        <h1 data-i18n="privacy.title"></h1>
 
         <div class="privacy-content">
-            <p data-i18n="privacy.intro">
-                DidiCafe dia manangona angon-drakitra ilaina fotsiny ho an'ny fampiasana WiFi.
-            </p>
+            <p data-i18n="privacy.intro"></p>
 
-            <h2 data-i18n="privacy.controller_title">Tompon'andraikitry ny fitsaboana angon-drakitra</h2>
-            <p data-i18n="privacy.controller">
-                Ny tompon'andraikitra dia DidiCafe, [adresse du café], [ville], Madagascar.
-                Raha misy fanontaniana momba ny angon-drakitrao manokana, mifandraisa amin'ny mpiasan'ny café.
-            </p>
+            <h2 data-i18n="privacy.controller_title"></h2>
+            <p data-i18n="privacy.controller"></p>
 
-            <h2 data-i18n="privacy.data_title">Angon-drakitra angonina</h2>
+            <h2 data-i18n="privacy.data_title"></h2>
             <ul>
-                <li data-i18n="privacy.data_mac"><strong>Adiresy MAC</strong> — famantarana tokana ny fitaovanao, ampiasaina hanomezana alalana hiditra amin'ny tambajotra amin'ny alalan'ny pare-feu. Voafafa mandeha hoazy rehefa tapitra ny session.</li>
-                <li data-i18n="privacy.data_ip"><strong>Adiresy IP</strong> — adiresy tambajotra nomena ny fitaovanao, ampiasaina hamantarana ny fifandraisanao amin'ny tambajotra anatiny.</li>
-                <li data-i18n="privacy.data_session"><strong>Faharetan'ny session</strong> — ora nanombohana sy hifarana, ho an'ny fotoana novidina.</li>
+                <li data-i18n="privacy.data_mac"></li>
+                <li data-i18n="privacy.data_ip"></li>
+                <li data-i18n="privacy.data_session"></li>
             </ul>
 
-            <h2 data-i18n="privacy.data_not_title">Angon-drakitra TSY angonina</h2>
+            <h2 data-i18n="privacy.data_not_title"></h2>
             <ul>
-                <li data-i18n="privacy.data_not_browsing"><strong>Tantaran'ny navigasion</strong> — tsy hitantsika na voatahirizy ny tranonkala alehanao.</li>
-                <li data-i18n="privacy.data_not_content"><strong>Votoatin'ny fifandraisana</strong> — tsy vakina na voatahirizy ny hafatrao, mailaka ary rakitra.</li>
-                <li data-i18n="privacy.data_not_identity"><strong>Mombamomba anao</strong> — tsy mangataka anarana, laharana finday na taratasy maha-olona.</li>
+                <li data-i18n="privacy.data_not_browsing"></li>
+                <li data-i18n="privacy.data_not_content"></li>
+                <li data-i18n="privacy.data_not_identity"></li>
             </ul>
 
-            <h2 data-i18n="privacy.legal_title">Fototra ara-dalàna</h2>
-            <p data-i18n="privacy.legal">
-                Ny fitsaboana ny angon-drakitrao dia miorina amin'ny Loi n°2014-038 momba ny
-                fiarovana ny angon-drakitra manokana eto Madagasikara, indrindra ny andininy
-                faha-20 (fanekena amin'ny fifanarahana). Ny fividianana code WiFi dia fifanarahana
-                fanomezana tolotra, ary ny fanangonana ny adiresy MAC sy IP dia ilaina tanteraka
-                ho an'ny fanatanterahana izany fifanarahana izany (fahazoan-dalana amin'ny tambajotra).
-            </p>
+            <h2 data-i18n="privacy.legal_title"></h2>
+            <p data-i18n="privacy.legal"></p>
 
-            <h2 data-i18n="privacy.retention_title">Fitehirizana</h2>
-            <p data-i18n="privacy.retention">
-                Ny angon-drakitra session dia voafafa mandeha hoazy rehefa afaka 90 andro.
-                Ny code tapitra na nesorina dia voafafa koa.
-            </p>
+            <h2 data-i18n="privacy.retention_title"></h2>
+            <p data-i18n="privacy.retention"></p>
 
-            <h2 data-i18n="privacy.rights_title">Zo anao</h2>
-            <p data-i18n="privacy.rights">
-                Arakaraka ny Loi n°2014-038, manana ireto zo ireto ianao:
-            </p>
+            <h2 data-i18n="privacy.rights_title"></h2>
+            <p data-i18n="privacy.rights"></p>
             <ul>
-                <li data-i18n="privacy.right_access"><strong>Zo hahalala</strong> — mangataka ny angon-drakitra voatahirizy momba anao.</li>
-                <li data-i18n="privacy.right_erasure"><strong>Zo hamafa</strong> — mangataka ny fanafoanana avy hatrany ny angon-drakitrao amin'ny mpiasan'ny café.</li>
-                <li data-i18n="privacy.right_object"><strong>Zo hanohitra</strong> — manohitra ny fitsaboana ny angon-drakitrao.</li>
+                <li data-i18n="privacy.right_access"></li>
+                <li data-i18n="privacy.right_erasure"></li>
+                <li data-i18n="privacy.right_object"></li>
             </ul>
-            <p data-i18n="privacy.rights_contact">
-                Ho an'ny fampiharana ireo zo ireo, mifandraisa amin'ny mpiasan'ny café miaraka amin'ny adiresy MAC ny fitaovanao.
-            </p>
-            <p data-i18n="privacy.complaint">
-                Manana zo koa ianao hanolotra fitarainana amin'ny Commission Malgache de l'Informatique et des Libertés (CMIL).
-            </p>
+            <p data-i18n="privacy.rights_contact"></p>
+            <p data-i18n="privacy.complaint"></p>
 
-            <h2 data-i18n="privacy.security_title">Fiarovana</h2>
-            <p data-i18n="privacy.security">
-                Voatahirizy eto an-toerana ny angon-drakitra amin'ny serveur-n'ny café. Tsy alefa any amin'ny antoko hafa na any amin'ny internet.
-            </p>
+            <h2 data-i18n="privacy.security_title"></h2>
+            <p data-i18n="privacy.security"></p>
         </div>
 
         <div class="mt-lg text-center">
-            <a href="/portal" class="btn btn--outline" data-i18n="privacy.back">Hiverina</a>
+            <a href="/portal" class="btn btn--outline" data-i18n="privacy.back"></a>
         </div>
     </div>
 </main>

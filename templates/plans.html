@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ cafe_name }} - Drafitra{% endblock %}
+{% block title %}{{ cafe_name }}{% endblock %}
 {% block theme_css %}{{ theme_css }}{% endblock %}
 
 {% block body %}
@@ -9,15 +9,11 @@
         {% include "partials/brand.html" %}
         {% include "partials/lang_switcher.html" %}
 
-        <h2 class="text-center mb-md" data-i18n="plans.title">Drafitra WiFi</h2>
-        <p class="text-center text-muted text-sm mb-lg" data-i18n="plans.subtitle">
-            Misafidiana ny drafitra mety aminao
-        </p>
+        <h2 class="text-center mb-md" data-i18n="plans.title"></h2>
+        <p class="text-center text-muted text-sm mb-lg" data-i18n="plans.subtitle"></p>
 
         {% if plans.is_empty() %}
-        <p class="text-center text-muted mt-lg" data-i18n="plans.no_plans">
-            Tsy misy drafitra aloha.
-        </p>
+        <p class="text-center text-muted mt-lg" data-i18n="plans.no_plans"></p>
         {% else %}
         <div class="plan-grid">
             {% for plan in &plans %}
@@ -27,12 +23,12 @@
                 <div class="plan-card-duration">
                     {% if plan.duration_minutes >= 60 %}
                         {% if plan.duration_minutes % 60 == 0 %}
-                    <span data-i18n="plans.hours" data-i18n-args='{"count":"{{ plan.duration_minutes / 60 }}"}'>{{ plan.duration_minutes / 60 }} ora</span>
+                    <span data-i18n="plans.hours" data-i18n-args='{"count":"{{ plan.duration_minutes / 60 }}"}'></span>
                         {% else %}
-                    <span data-i18n="plans.hours_minutes" data-i18n-args='{"hours":"{{ plan.duration_minutes / 60 }}","minutes":"{{ plan.duration_minutes % 60 }}"}'>{{ plan.duration_minutes / 60 }}h{{ plan.duration_minutes % 60 }}min</span>
+                    <span data-i18n="plans.hours_minutes" data-i18n-args='{"hours":"{{ plan.duration_minutes / 60 }}","minutes":"{{ plan.duration_minutes % 60 }}"}'></span>
                         {% endif %}
                     {% else %}
-                    <span data-i18n="plans.minutes" data-i18n-args='{"count":"{{ plan.duration_minutes }}"}'>{{ plan.duration_minutes }} minitra</span>
+                    <span data-i18n="plans.minutes" data-i18n-args='{"count":"{{ plan.duration_minutes }}"}'></span>
                     {% endif %}
                 </div>
             </div>
@@ -42,22 +38,22 @@
 
         {% if !contact_phone.is_empty() || !contact_name.is_empty() || !contact_hours.is_empty() %}
         <div class="contact-section mt-lg">
-            <h3 class="text-center mb-md" data-i18n="plans.contact_title">Fifandraisana</h3>
+            <h3 class="text-center mb-md" data-i18n="plans.contact_title"></h3>
             {% if !contact_name.is_empty() %}
             <p class="contact-item">
-                <span class="contact-label" data-i18n="plans.contact_name">Tompon'ny:</span>
+                <span class="contact-label" data-i18n="plans.contact_name"></span>
                 <span>{{ contact_name }}</span>
             </p>
             {% endif %}
             {% if !contact_phone.is_empty() %}
             <p class="contact-item">
-                <span class="contact-label" data-i18n="plans.contact_phone">Finday:</span>
+                <span class="contact-label" data-i18n="plans.contact_phone"></span>
                 <a href="tel:{{ contact_phone }}">{{ contact_phone }}</a>
             </p>
             {% endif %}
             {% if !contact_hours.is_empty() %}
             <p class="contact-item">
-                <span class="contact-label" data-i18n="plans.contact_hours">Ora fiasana:</span>
+                <span class="contact-label" data-i18n="plans.contact_hours"></span>
                 <span>{{ contact_hours }}</span>
             </p>
             {% endif %}
@@ -65,7 +61,7 @@
         {% endif %}
 
         <div class="mt-lg text-center">
-            <a href="/portal" class="btn btn--outline" data-i18n="plans.back">Hiverina</a>
+            <a href="/portal" class="btn btn--outline" data-i18n="plans.back"></a>
         </div>
     </div>
 </main>

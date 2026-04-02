@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="card" data-csrf="{{ csrf_token }}">
-    <h1 data-i18n="admin.dash.title">Tableau de bord</h1>
+    <h1 data-i18n="admin.dash.title"></h1>
 
     <div class="stats mt-md">
         <div class="stat">
@@ -12,59 +12,59 @@
                 <svg viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1"/></svg>
             </div>
             <div class="stat-value" id="stat-active" data-value="{{ stats.active_sessions }}">{{ stats.active_sessions }}</div>
-            <div class="stat-label" data-i18n="admin.dash.active">Lozisialy mandeha</div>
+            <div class="stat-label" data-i18n="admin.dash.active"></div>
         </div>
         <div class="stat">
             <div class="stat-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
             </div>
             <div class="stat-value" id="stat-sold" data-value="{{ stats.tokens_sold }}">{{ stats.tokens_sold }}</div>
-            <div class="stat-label" data-i18n="admin.dash.sold_today">Code namidy androany</div>
+            <div class="stat-label" data-i18n="admin.dash.sold_today"></div>
         </div>
         <div class="stat">
             <div class="stat-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
             </div>
             <div class="stat-value" id="stat-revenue" data-value="{{ stats.revenue_ariary }}" data-suffix=" Ar">{{ stats.revenue_ariary }} Ar</div>
-            <div class="stat-label" data-i18n="admin.dash.revenue">Vola androany</div>
+            <div class="stat-label" data-i18n="admin.dash.revenue"></div>
         </div>
     </div>
 
     <!-- 7-day rolling chart -->
     <div class="chart-section mt-lg">
         <div class="chart-header">
-            <h2 data-i18n="admin.dash.chart_title">7 andro farany</h2>
+            <h2 data-i18n="admin.dash.chart_title"></h2>
             <div class="chart-legend">
                 <span class="chart-legend-item chart-legend-revenue">
                     <span class="chart-legend-dot"></span>
-                    <span data-i18n="admin.dash.revenue">Vola</span>
+                    <span data-i18n="admin.dash.chart_revenue"></span>
                 </span>
                 <span class="chart-legend-item chart-legend-tokens">
                     <span class="chart-legend-dot"></span>
-                    <span data-i18n="admin.dash.sold_today">Code</span>
+                    <span data-i18n="admin.dash.chart_tokens"></span>
                 </span>
             </div>
         </div>
         <div class="chart-wrap" id="weekly-chart" aria-label="7-day revenue and tokens chart">
-            <p class="text-muted text-sm text-center" data-i18n="admin.dash.chart_loading">Miandry...</p>
+            <p class="text-muted text-sm text-center" data-i18n="admin.dash.chart_loading"></p>
         </div>
     </div>
 
-    <h2 class="mt-lg" data-i18n="admin.dash.sessions">Lozisialy mandeha</h2>
+    <h2 class="mt-lg" data-i18n="admin.dash.sessions"></h2>
 
     <div id="sessions-area">
         {% if active_sessions.is_empty() %}
-        <p class="text-muted text-sm mt-sm" data-i18n="admin.dash.no_sessions">Tsy misy lozisialy mandeha.</p>
+        <p class="text-muted text-sm mt-sm" data-i18n="admin.dash.no_sessions"></p>
         {% else %}
         <div class="table-wrap">
             <table>
                 <thead>
                     <tr>
-                        <th>Code</th>
-                        <th data-i18n="admin.dash.col_mac">MAC</th>
-                        <th data-i18n="admin.dash.col_ip">IP</th>
-                        <th data-i18n="admin.dash.col_remaining">Sisa</th>
-                        <th><span class="sr-only">Actions</span></th>
+                        <th data-i18n="admin.dash.col_code"></th>
+                        <th data-i18n="admin.dash.col_mac"></th>
+                        <th data-i18n="admin.dash.col_ip"></th>
+                        <th data-i18n="admin.dash.col_remaining"></th>
+                        <th><span class="sr-only" data-i18n="admin.common.actions"></span></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -83,8 +83,8 @@
                                 class="btn btn--danger btn--sm"
                                 data-i18n="admin.dash.disconnect"
                                 data-disconnect="{{ s.id }}"
-                                aria-label="Disconnect session {{ s.id }}"
-                            >Hajanona</button>
+                                data-i18n-aria="admin.dash.disconnect"
+                            ></button>
                         </td>
                     </tr>
                     {% endfor %}
@@ -94,9 +94,7 @@
         {% endif %}
     </div>
 
-    <a href="/admin/manage" class="btn btn--outline btn--full mt-lg" data-i18n="admin.dash.manage_tokens">
-        Hitantana code
-    </a>
+    <a href="/admin/manage" class="btn btn--outline btn--full mt-lg" data-i18n="admin.dash.manage_tokens"></a>
 </div>
 
 <div id="toast-container" aria-live="polite"></div>

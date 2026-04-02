@@ -1,23 +1,23 @@
 {% extends "admin/base.html" %}
 
-{% block title %}{{ cafe_name }} Admin - Journal{% endblock %}
+{% block title %}{{ cafe_name }} Admin{% endblock %}
 
 {% block content %}
 <div class="card">
-    <h1 data-i18n="admin.audit.title">Journal d'audit</h1>
+    <h1 data-i18n="admin.audit.title"></h1>
 
     {% if entries.is_empty() %}
-    <p class="text-muted text-sm mt-sm" data-i18n="admin.audit.none">Aucune entrée.</p>
+    <p class="text-muted text-sm mt-sm" data-i18n="admin.audit.none"></p>
     {% else %}
     <div class="table-wrap mt-md">
         <table>
             <thead>
                 <tr>
-                    <th data-i18n="admin.audit.col_time">Date</th>
-                    <th data-i18n="admin.audit.col_user">Admin</th>
-                    <th data-i18n="admin.audit.col_action">Action</th>
-                    <th data-i18n="admin.audit.col_target">Cible</th>
-                    <th data-i18n="admin.audit.col_detail">Détail</th>
+                    <th data-i18n="admin.audit.col_time"></th>
+                    <th data-i18n="admin.audit.col_user"></th>
+                    <th data-i18n="admin.audit.col_action"></th>
+                    <th data-i18n="admin.audit.col_target"></th>
+                    <th data-i18n="admin.audit.col_detail"></th>
                 </tr>
             </thead>
             <tbody>
@@ -27,17 +27,17 @@
                     <td><code class="text-xs">{{ e.admin_user }}</code></td>
                     <td>
                         {% if e.action == "login" %}
-                        <span class="badge badge--active" data-i18n="admin.audit.action_login">Connexion</span>
+                        <span class="badge badge--active" data-i18n="admin.audit.action_login"></span>
                         {% else if e.action == "login_failed" %}
-                        <span class="badge badge--expired" data-i18n="admin.audit.action_login_failed">Échec connexion</span>
+                        <span class="badge badge--expired" data-i18n="admin.audit.action_login_failed"></span>
                         {% else if e.action == "create_plan" %}
-                        <span class="badge badge--unused" data-i18n="admin.audit.action_create_plan">Forfait créé</span>
+                        <span class="badge badge--unused" data-i18n="admin.audit.action_create_plan"></span>
                         {% else if e.action == "generate_tokens" %}
-                        <span class="badge badge--unused" data-i18n="admin.audit.action_generate_tokens">Codes générés</span>
+                        <span class="badge badge--unused" data-i18n="admin.audit.action_generate_tokens"></span>
                         {% else if e.action == "disconnect_session" %}
-                        <span class="badge badge--expired" data-i18n="admin.audit.action_disconnect">Déconnexion</span>
+                        <span class="badge badge--expired" data-i18n="admin.audit.action_disconnect"></span>
                         {% else if e.action == "revoke_token" %}
-                        <span class="badge badge--expired" data-i18n="admin.audit.action_revoke">Révocation</span>
+                        <span class="badge badge--expired" data-i18n="admin.audit.action_revoke"></span>
                         {% else %}
                         <span class="badge">{{ e.action }}</span>
                         {% endif %}

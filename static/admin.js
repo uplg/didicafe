@@ -24,7 +24,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     if (row) row.remove();
                 } else {
                     btn.disabled = false;
-                    btn.textContent = "Error";
+                    btn.textContent = t("error.generic");
                     setTimeout(function () {
                         btn.textContent = typeof t === "function" ? t("admin.dash.disconnect") : originalText;
                     }, 2000);
@@ -32,7 +32,7 @@ document.addEventListener("DOMContentLoaded", function () {
             })
             .catch(function () {
                 btn.disabled = false;
-                btn.textContent = "Error";
+                btn.textContent = t("error.generic");
             });
     });
 });

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="mg">
+<html lang="fr">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -17,13 +17,13 @@
             <span>{{ cafe_name }}</span>
         </div>
         <ul class="nav-links">
-            <li><a href="/admin"{% if current_page == "dashboard" %} class="active"{% endif %} data-i18n="admin.nav.dashboard">Tableau de bord</a></li>
-            <li><a href="/admin/manage"{% if current_page == "manage" %} class="active"{% endif %} data-i18n="admin.manage.title">Gestion</a></li>
-            <li><a href="/admin/audit"{% if current_page == "audit" %} class="active"{% endif %} data-i18n="admin.nav.audit">Journal</a></li>
-            <li><a href="/admin/settings"{% if current_page == "settings" %} class="active"{% endif %} data-i18n="admin.nav.settings">Fanovana</a></li>
+            <li><a href="/admin"{% if current_page == "dashboard" %} class="active"{% endif %} data-i18n="admin.nav.dashboard"></a></li>
+            <li><a href="/admin/manage"{% if current_page == "manage" %} class="active"{% endif %} data-i18n="admin.manage.title"></a></li>
+            <li><a href="/admin/audit"{% if current_page == "audit" %} class="active"{% endif %} data-i18n="admin.nav.audit"></a></li>
+            <li><a href="/admin/settings"{% if current_page == "settings" %} class="active"{% endif %} data-i18n="admin.nav.settings"></a></li>
             <li>
                 <form method="post" action="/admin/logout" style="display:inline">
-                    <button type="submit" class="btn btn--outline btn--sm" data-i18n="admin.nav.logout">Hivoaka</button>
+                    <button type="submit" class="btn btn--outline btn--sm" data-i18n="admin.nav.logout"></button>
                 </form>
             </li>
             <li>

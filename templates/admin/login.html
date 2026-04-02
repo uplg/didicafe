@@ -13,13 +13,13 @@
         {% include "../partials/lang_switcher.html" %}
 
         {% if let Some(err) = error %}
-        <div class="alert alert--error" role="alert" data-i18n="{{ err }}">{{ err }}</div>
+        <div class="alert alert--error" role="alert" data-i18n="{{ err }}"></div>
         {% endif %}
 
         <form method="post" action="/admin/login" aria-label="Admin login">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="form-group">
-                <label for="username" data-i18n="admin.login.username">Anarana</label>
+                <label for="username" data-i18n="admin.login.username"></label>
                 <input
                     type="text"
                     id="username"
@@ -31,7 +31,7 @@
                 >
             </div>
             <div class="form-group">
-                <label for="password" data-i18n="admin.login.password">Teny miafina</label>
+                <label for="password" data-i18n="admin.login.password"></label>
                 <input
                     type="password"
                     id="password"
@@ -41,9 +41,7 @@
                     aria-required="true"
                 >
             </div>
-            <button type="submit" class="btn btn--primary" data-i18n="admin.login.submit">
-                Hiditra
-            </button>
+            <button type="submit" class="btn btn--primary" data-i18n="admin.login.submit"></button>
         </form>
     </div>
 </main>

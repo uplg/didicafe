@@ -9,7 +9,8 @@
  * The switcher buttons use: <button class="lang-btn" data-lang="mg">MG</button>
  *
  * Language is persisted in localStorage under "didicafe_lang".
- * Default: Malagasy (mg) — primary audience.
+ * Default: French (fr) — lingua franca of Madagascar.
+ * Browser locale detection via navigator.languages.
  */
 
 "use strict";
@@ -18,13 +19,11 @@ const TRANSLATIONS = {
   mg: {
     // -- Portal --
     "portal.brand": "DidiCafe",
-    "portal.subtitle": "WiFi an'ny rehetra",
     "portal.title": "Ampidiro ny code-nao",
     "portal.placeholder": "DIDI-XXXX-XXXX",
     "portal.connect": "Hiditra",
     "portal.connect_aria": "Hiditra amin'ny internet",
     "portal.error.invalid": "Code diso na efa nampiasaina.",
-    "portal.error.rate_limit": "Andraso kely azafady, efa be loatra ny fanandramana.",
     "portal.error.device": "Tsy hita ny fitaovanao. Hamarino fa mifandray amin'ny WiFi ianao.",
     "portal.error.internal": "Nisy olana. Andramo indray azafady.",
     "portal.error.csrf": "Fangatahana tsy mety. Andramo indray azafady.",
@@ -34,7 +33,6 @@ const TRANSLATIONS = {
     "success.title": "Tafiditra!",
     "success.remaining": "Fotoana sisa",
     "success.hint": "Azonao idiana ny pejy, manomboka mijery pejy hafa ianao.",
-    "success.minutes": "min",
 
     // -- Expired --
     "expired.title": "Tapitra ny fotoana",
@@ -44,15 +42,11 @@ const TRANSLATIONS = {
 
     // -- Admin Nav --
     "admin.nav.dashboard": "Dashboard",
-    "admin.nav.tokens": "Code",
-    "admin.nav.plans": "Drafitra",
-    "admin.nav.sessions": "Lozisialy",
     "admin.nav.audit": "Journal",
     "admin.nav.settings": "Fanovana",
     "admin.nav.logout": "Hivoaka",
 
     // -- Admin Login --
-    "admin.login.title": "Fidirana ho an'ny mpiasa",
     "admin.login.username": "Anarana",
     "admin.login.password": "Teny miafina",
     "admin.login.submit": "Hiditra",
@@ -71,30 +65,37 @@ const TRANSLATIONS = {
     "admin.dash.col_remaining": "Sisa",
     "admin.dash.disconnect": "Hajanona",
     "admin.dash.manage_tokens": "Fitantanana ny code",
+    "admin.dash.col_code": "Code",
     "admin.dash.chart_title": "7 andro farany",
     "admin.dash.chart_loading": "Miandry...",
+    "admin.dash.chart_revenue": "Vola",
+    "admin.dash.chart_tokens": "Code namidy",
+
+    // -- Admin Common --
+    "admin.common.actions": "Hetsika",
+    "admin.common.close": "Hidiana",
 
     // -- Admin Tokens --
     "admin.tokens.title": "Fitantanana code",
     "admin.tokens.generate": "Mamorona code vaovao",
     "admin.tokens.select_plan": "Misafidiana drafitra...",
+    "admin.tokens.select_option": "Misafidiana...",
     "admin.tokens.name": "Anarana",
+    "admin.tokens.name_placeholder": "Anarana (tsy voatery)",
     "admin.tokens.quantity": "Isa",
     "admin.tokens.submit": "Mamorona",
-    "admin.tokens.generated": "Code naorina",
     "admin.tokens.all": "Code rehetra",
     "admin.tokens.col_name": "Anarana",
     "admin.tokens.col_plan": "Drafitra",
     "admin.tokens.col_code": "Code",
     "admin.tokens.col_status": "Sata",
-    "admin.tokens.col_created": "Naorina",
-    "admin.tokens.col_expires": "Tapitra",
-    "admin.tokens.back": "Hiverina",
+    "admin.tokens.none": "Tsy misy code aloha.",
 
     // -- Admin Plans --
     "admin.plans.title": "Fitantanana drafitra",
     "admin.plans.create": "Mamorona drafitra vaovao",
     "admin.plans.name": "Anarana",
+    "admin.plans.name_placeholder": "ohatra: WiFi 1h",
     "admin.plans.duration": "Faharetan'ny (minitra)",
     "admin.plans.price": "Vidiny (Ariary)",
     "admin.plans.submit": "Mamorona",
@@ -107,19 +108,10 @@ const TRANSLATIONS = {
     "admin.plans.inactive": "Tsy mavitrika",
     "admin.plans.deactivate": "Hajanona",
     "admin.plans.activate": "Hamelona",
-    "admin.plans.back": "Hiverina",
+    "admin.plans.none": "Tsy misy drafitra aloha.",
 
     // -- Admin Sessions --
-    "admin.sessions.title": "Fitantanana lozisialy",
     "admin.sessions.none": "Tsy misy lozisialy mandeha.",
-    "admin.sessions.count": "Isa:",
-    "admin.sessions.col_mac": "MAC",
-    "admin.sessions.col_ip": "IP",
-    "admin.sessions.col_started": "Nanomboka",
-    "admin.sessions.col_expires": "Tapitra",
-    "admin.sessions.col_remaining": "Sisa",
-    "admin.sessions.disconnect": "Hajanona",
-    "admin.sessions.back": "Hiverina",
 
     // -- Admin Audit --
     "admin.audit.title": "Journal d'audit",
@@ -157,6 +149,8 @@ const TRANSLATIONS = {
     "admin.error.duration_positive": "Ny faharetan'ny dia tsy maintsy > 0.",
     "admin.error.duration_max": "Ny faharetan'ny dia tsy maintsy <= 1440 minitra (24h).",
     "admin.error.price_negative": "Ny vidiny dia tsy maintsy >= 0.",
+    "admin.error.count_max": "50 code farafahabetsany isaky ny mamorona.",
+    "admin.error.plan_inactive": "Tsy mavitrika io drafitra io.",
 
     // -- Admin Settings --
     "admin.settings.title": "Fanovana",
@@ -168,6 +162,7 @@ const TRANSLATIONS = {
     "admin.settings.contact_name": "Anaran'ny tompon'andraikitra",
     "admin.settings.contact_phone": "Laharana finday",
     "admin.settings.contact_hours": "Ora fiasana",
+    "admin.settings.hours_placeholder": "Lat-Sab 7h-20h",
     "admin.settings.save": "Tehirizo",
     "admin.settings.saved": "Voatahiry soa aman-tsara ny fanovana.",
     "admin.error.welcome_too_long": "Ny hafatra dia tsy maintsy latsaky ny 500 litera.",
@@ -176,6 +171,7 @@ const TRANSLATIONS = {
     "admin.error.hours_too_long": "Ny ora fiasana dia lava loatra.",
 
     // -- Generic Errors --
+    "error.generic": "Nisy olana.",
     "error.internal": "Nisy olana. Andramo indray azafady.",
     "error.rate_limit": "Andraso kely azafady, efa be loatra ny fanandramana.",
     "error.constraint": "Fanoroana tsy mety na efa misy.",
@@ -238,13 +234,11 @@ const TRANSLATIONS = {
   fr: {
     // -- Portal --
     "portal.brand": "DidiCafe",
-    "portal.subtitle": "WiFi pour tous",
     "portal.title": "Entrez votre code d'accès",
     "portal.placeholder": "DIDI-XXXX-XXXX",
     "portal.connect": "Se connecter",
     "portal.connect_aria": "Se connecter à internet",
     "portal.error.invalid": "Code invalide ou déjà utilisé.",
-    "portal.error.rate_limit": "Trop de tentatives. Veuillez patienter.",
     "portal.error.device": "Appareil non identifié. Vérifiez votre connexion WiFi.",
     "portal.error.internal": "Erreur interne. Veuillez réessayer.",
     "portal.error.csrf": "Requête invalide. Veuillez réessayer.",
@@ -254,7 +248,6 @@ const TRANSLATIONS = {
     "success.title": "Connecté !",
     "success.remaining": "Temps restant",
     "success.hint": "Vous pouvez fermer cette page et naviguer librement.",
-    "success.minutes": "min",
 
     // -- Expired --
     "expired.title": "Session expirée",
@@ -264,15 +257,11 @@ const TRANSLATIONS = {
 
     // -- Admin Nav --
     "admin.nav.dashboard": "Tableau de bord",
-    "admin.nav.tokens": "Codes",
-    "admin.nav.plans": "Forfaits",
-    "admin.nav.sessions": "Sessions",
     "admin.nav.audit": "Journal",
     "admin.nav.settings": "Paramètres",
     "admin.nav.logout": "Déconnexion",
 
     // -- Admin Login --
-    "admin.login.title": "Connexion personnel",
     "admin.login.username": "Nom d'utilisateur",
     "admin.login.password": "Mot de passe",
     "admin.login.submit": "Se connecter",
@@ -291,30 +280,37 @@ const TRANSLATIONS = {
     "admin.dash.col_remaining": "Restant",
     "admin.dash.disconnect": "Déconnecter",
     "admin.dash.manage_tokens": "Gérer les codes",
+    "admin.dash.col_code": "Code",
     "admin.dash.chart_title": "7 derniers jours",
     "admin.dash.chart_loading": "Chargement...",
+    "admin.dash.chart_revenue": "Revenu",
+    "admin.dash.chart_tokens": "Codes vendus",
+
+    // -- Admin Common --
+    "admin.common.actions": "Actions",
+    "admin.common.close": "Fermer",
 
     // -- Admin Tokens --
     "admin.tokens.title": "Gestion des codes",
     "admin.tokens.generate": "Générer de nouveaux codes",
     "admin.tokens.select_plan": "Choisir un forfait...",
+    "admin.tokens.select_option": "Sélectionner...",
     "admin.tokens.name": "Nom",
+    "admin.tokens.name_placeholder": "Nom (optionnel)",
     "admin.tokens.quantity": "Quantité",
     "admin.tokens.submit": "Générer",
-    "admin.tokens.generated": "Codes générés",
     "admin.tokens.all": "Codes courants",
     "admin.tokens.col_name": "Nom",
     "admin.tokens.col_plan": "Forfait",
     "admin.tokens.col_code": "Code",
     "admin.tokens.col_status": "Statut",
-    "admin.tokens.col_created": "Créé le",
-    "admin.tokens.col_expires": "Expire le",
-    "admin.tokens.back": "Retour",
+    "admin.tokens.none": "Aucun code pour le moment.",
 
     // -- Admin Plans --
     "admin.plans.title": "Gestion des forfaits",
     "admin.plans.create": "Créer un nouveau forfait",
     "admin.plans.name": "Nom",
+    "admin.plans.name_placeholder": "ex : WiFi 1h",
     "admin.plans.duration": "Durée (minutes)",
     "admin.plans.price": "Prix (Ariary)",
     "admin.plans.submit": "Créer",
@@ -327,19 +323,10 @@ const TRANSLATIONS = {
     "admin.plans.inactive": "Inactif",
     "admin.plans.deactivate": "Désactiver",
     "admin.plans.activate": "Activer",
-    "admin.plans.back": "Retour",
+    "admin.plans.none": "Aucun forfait pour le moment.",
 
     // -- Admin Sessions --
-    "admin.sessions.title": "Gestion des sessions",
     "admin.sessions.none": "Aucune session active.",
-    "admin.sessions.count": "Nombre:",
-    "admin.sessions.col_mac": "MAC",
-    "admin.sessions.col_ip": "IP",
-    "admin.sessions.col_started": "Démarré",
-    "admin.sessions.col_expires": "Expire",
-    "admin.sessions.col_remaining": "Restant",
-    "admin.sessions.disconnect": "Déconnecter",
-    "admin.sessions.back": "Retour",
 
     // -- Admin Audit --
     "admin.audit.title": "Journal d'audit",
@@ -377,6 +364,8 @@ const TRANSLATIONS = {
     "admin.error.duration_positive": "La durée doit être supérieure à 0.",
     "admin.error.duration_max": "La durée ne doit pas dépasser 1440 minutes (24h).",
     "admin.error.price_negative": "Le prix doit être supérieur ou égal à 0.",
+    "admin.error.count_max": "50 codes maximum par génération.",
+    "admin.error.plan_inactive": "Ce forfait est inactif.",
 
     // -- Admin Settings --
     "admin.settings.title": "Paramètres",
@@ -388,6 +377,7 @@ const TRANSLATIONS = {
     "admin.settings.contact_name": "Nom du responsable",
     "admin.settings.contact_phone": "Numéro de téléphone",
     "admin.settings.contact_hours": "Heures d'ouverture",
+    "admin.settings.hours_placeholder": "Lun-Sam 7h-20h",
     "admin.settings.save": "Enregistrer",
     "admin.settings.saved": "Paramètres enregistrés avec succès.",
     "admin.error.welcome_too_long": "Le message d'accueil ne doit pas dépasser 500 caractères.",
@@ -396,6 +386,7 @@ const TRANSLATIONS = {
     "admin.error.hours_too_long": "Les heures d'ouverture sont trop longues.",
 
     // -- Generic Errors --
+    "error.generic": "Erreur.",
     "error.internal": "Erreur interne. Veuillez réessayer.",
     "error.rate_limit": "Trop de tentatives. Veuillez patienter.",
     "error.constraint": "Référence invalide ou entrée en doublon.",
@@ -458,13 +449,11 @@ const TRANSLATIONS = {
   en: {
     // -- Portal --
     "portal.brand": "DidiCafe",
-    "portal.subtitle": "WiFi for everyone",
     "portal.title": "Enter your access code",
     "portal.placeholder": "DIDI-XXXX-XXXX",
     "portal.connect": "Connect",
     "portal.connect_aria": "Connect to internet",
     "portal.error.invalid": "Invalid or already used code.",
-    "portal.error.rate_limit": "Too many attempts. Please wait.",
     "portal.error.device": "Device not identified. Check your WiFi connection.",
     "portal.error.internal": "Internal error. Please try again.",
     "portal.error.csrf": "Invalid request. Please try again.",
@@ -474,7 +463,6 @@ const TRANSLATIONS = {
     "success.title": "Connected!",
     "success.remaining": "Time remaining",
     "success.hint": "You can close this page and start browsing.",
-    "success.minutes": "min",
 
     // -- Expired --
     "expired.title": "Session Expired",
@@ -484,15 +472,11 @@ const TRANSLATIONS = {
 
     // -- Admin Nav --
     "admin.nav.dashboard": "Dashboard",
-    "admin.nav.tokens": "Tokens",
-    "admin.nav.plans": "Plans",
-    "admin.nav.sessions": "Sessions",
     "admin.nav.audit": "Audit",
     "admin.nav.settings": "Settings",
     "admin.nav.logout": "Log out",
 
     // -- Admin Login --
-    "admin.login.title": "Staff Login",
     "admin.login.username": "Username",
     "admin.login.password": "Password",
     "admin.login.submit": "Log in",
@@ -511,30 +495,37 @@ const TRANSLATIONS = {
     "admin.dash.col_remaining": "Remaining",
     "admin.dash.disconnect": "Disconnect",
     "admin.dash.manage_tokens": "Manage Tokens",
+    "admin.dash.col_code": "Code",
     "admin.dash.chart_title": "Last 7 Days",
     "admin.dash.chart_loading": "Loading...",
+    "admin.dash.chart_revenue": "Revenue",
+    "admin.dash.chart_tokens": "Tokens sold",
+
+    // -- Admin Common --
+    "admin.common.actions": "Actions",
+    "admin.common.close": "Close",
 
     // -- Admin Tokens --
     "admin.tokens.title": "Token Management",
     "admin.tokens.generate": "Generate New Tokens",
     "admin.tokens.select_plan": "Select a plan...",
+    "admin.tokens.select_option": "Select...",
     "admin.tokens.name": "Name",
+    "admin.tokens.name_placeholder": "Name (optional)",
     "admin.tokens.quantity": "Quantity",
     "admin.tokens.submit": "Generate",
-    "admin.tokens.generated": "Generated tokens",
     "admin.tokens.all": "All Tokens",
     "admin.tokens.col_name": "Name",
     "admin.tokens.col_plan": "Plan",
     "admin.tokens.col_code": "Code",
     "admin.tokens.col_status": "Status",
-    "admin.tokens.col_created": "Created",
-    "admin.tokens.col_expires": "Expires",
-    "admin.tokens.back": "Back",
+    "admin.tokens.none": "No tokens yet.",
 
     // -- Admin Plans --
     "admin.plans.title": "Plan Management",
     "admin.plans.create": "Create New Plan",
     "admin.plans.name": "Name",
+    "admin.plans.name_placeholder": "e.g. WiFi 1h",
     "admin.plans.duration": "Duration (minutes)",
     "admin.plans.price": "Price (Ariary)",
     "admin.plans.submit": "Create",
@@ -547,19 +538,10 @@ const TRANSLATIONS = {
     "admin.plans.inactive": "Inactive",
     "admin.plans.deactivate": "Deactivate",
     "admin.plans.activate": "Activate",
-    "admin.plans.back": "Back",
+    "admin.plans.none": "No plans yet.",
 
     // -- Admin Sessions --
-    "admin.sessions.title": "Session Management",
     "admin.sessions.none": "No active sessions.",
-    "admin.sessions.count": "Count:",
-    "admin.sessions.col_mac": "MAC",
-    "admin.sessions.col_ip": "IP",
-    "admin.sessions.col_started": "Started",
-    "admin.sessions.col_expires": "Expires",
-    "admin.sessions.col_remaining": "Remaining",
-    "admin.sessions.disconnect": "Disconnect",
-    "admin.sessions.back": "Back",
 
     // -- Admin Audit --
     "admin.audit.title": "Audit log",
@@ -597,6 +579,8 @@ const TRANSLATIONS = {
     "admin.error.duration_positive": "Duration must be greater than 0.",
     "admin.error.duration_max": "Duration must not exceed 1440 minutes (24h).",
     "admin.error.price_negative": "Price must be 0 or greater.",
+    "admin.error.count_max": "Maximum 50 codes per generation.",
+    "admin.error.plan_inactive": "This plan is inactive.",
 
     // -- Admin Settings --
     "admin.settings.title": "Settings",
@@ -608,6 +592,7 @@ const TRANSLATIONS = {
     "admin.settings.contact_name": "Contact person",
     "admin.settings.contact_phone": "Phone number",
     "admin.settings.contact_hours": "Business hours",
+    "admin.settings.hours_placeholder": "Mon-Sat 7am-8pm",
     "admin.settings.save": "Save",
     "admin.settings.saved": "Settings saved successfully.",
     "admin.error.welcome_too_long": "Welcome message must be 500 characters or less.",
@@ -616,6 +601,7 @@ const TRANSLATIONS = {
     "admin.error.hours_too_long": "Business hours is too long.",
 
     // -- Generic Errors --
+    "error.generic": "Error.",
     "error.internal": "Internal error. Please try again.",
     "error.rate_limit": "Too many attempts. Please wait and try again.",
     "error.constraint": "Invalid reference or duplicate entry.",
@@ -676,16 +662,34 @@ const TRANSLATIONS = {
   },
 };
 
-const DEFAULT_LANG = "mg";
+const DEFAULT_LANG = "fr";
 const STORAGE_KEY = "didicafe_lang";
 
-/** Get current language from localStorage or default. */
+/**
+ * Detect the best language from browser locale.
+ * Maps navigator.language prefixes to our supported set (mg, fr, en).
+ * Falls back to "fr" (lingua franca of Madagascar).
+ */
+function detectLang() {
+  try {
+    var langs = navigator.languages || [navigator.language || ""];
+    for (var i = 0; i < langs.length; i++) {
+      var tag = langs[i].toLowerCase();
+      if (tag === "mg" || tag.indexOf("mg-") === 0) return "mg";
+      if (tag === "fr" || tag.indexOf("fr-") === 0) return "fr";
+      if (tag === "en" || tag.indexOf("en-") === 0) return "en";
+    }
+  } catch (_) { /* ignore */ }
+  return DEFAULT_LANG;
+}
+
+/** Get current language from localStorage, or detect from browser, or default. */
 function getLang() {
   try {
-    return localStorage.getItem(STORAGE_KEY) || DEFAULT_LANG;
-  } catch {
-    return DEFAULT_LANG;
-  }
+    var stored = localStorage.getItem(STORAGE_KEY);
+    if (stored && TRANSLATIONS[stored]) return stored;
+  } catch (_) { /* ignore */ }
+  return detectLang();
 }
 
 /** Set language, persist, and update the page. */
@@ -737,22 +741,19 @@ function applyLang(lang) {
     if (argsAttr) {
       try { args = JSON.parse(argsAttr); } catch (_) { /* ignore malformed JSON */ }
     }
-    var val = t(key, lang, args);
-    if (val !== key) el.textContent = val;
+    el.textContent = t(key, lang, args);
   });
 
   // Placeholders
   document.querySelectorAll("[data-i18n-placeholder]").forEach(function (el) {
     var key = el.getAttribute("data-i18n-placeholder");
-    var val = t(key, lang);
-    if (val !== key) el.placeholder = val;
+    el.placeholder = t(key, lang);
   });
 
   // Aria labels
   document.querySelectorAll("[data-i18n-aria]").forEach(function (el) {
     var key = el.getAttribute("data-i18n-aria");
-    var val = t(key, lang);
-    if (val !== key) el.setAttribute("aria-label", val);
+    el.setAttribute("aria-label", t(key, lang));
   });
 
   // Update switcher active state

@@ -8,7 +8,7 @@
     <div class="card text-center">
         <div class="brand">
             <div class="brand-icon" aria-hidden="true">{{ cafe_name.chars().next().unwrap_or('D') }}</div>
-            <h1 data-i18n="success.title">Tafiditra!</h1>
+            <h1 data-i18n="success.title"></h1>
         </div>
 
         {% if !plan_name.is_empty() %}
@@ -27,16 +27,14 @@
             <span class="progress-ring-icon">&#10003;</span>
         </div>
 
-        <p class="countdown-label" data-i18n="success.remaining">Fotoana sisa</p>
+        <p class="countdown-label" data-i18n="success.remaining"></p>
         <div class="countdown" id="countdown" role="timer" aria-live="polite" aria-atomic="true"
              data-remaining="{{ remaining_seconds }}"
              data-total="{{ total_seconds }}">
             --:--
         </div>
 
-        <p class="text-muted text-sm mt-lg" data-i18n="success.hint">
-            Azonao sokafana ny pejy hafa, manomboka mizaha ianao.
-        </p>
+        <p class="text-muted text-sm mt-lg" data-i18n="success.hint"></p>
 
         {% include "partials/lang_switcher.html" %}
     </div>

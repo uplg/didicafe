@@ -1,29 +1,29 @@
 {% extends "admin/base.html" %}
 
-{% block title %}{{ cafe_name }} — Fitantanana{% endblock %}
+{% block title %}{{ cafe_name }} Admin{% endblock %}
 
 {% block content %}
 <div class="card">
-    <h1 data-i18n="admin.manage.title">Fitantanana</h1>
+    <h1 data-i18n="admin.manage.title"></h1>
 
     {% if let Some(msg) = message %}
     {% let args_json = msg.args_json() %}
-    <div class="alert alert--success mt-md" data-i18n="{{ msg.key }}"{% if !args_json.is_empty() %} data-i18n-args="{{ args_json }}"{% endif %}>{{ msg.key }}</div>
+    <div class="alert alert--success mt-md" data-i18n="{{ msg.key }}"{% if !args_json.is_empty() %} data-i18n-args="{{ args_json }}"{% endif %}></div>
     {% endif %}
 
     <!-- Quick Stats -->
     <div class="stats mt-md">
         <div class="stat">
             <div class="stat-value">{{ sessions.len() }}</div>
-            <div class="stat-label" data-i18n="admin.dash.sessions">Sessions</div>
+            <div class="stat-label" data-i18n="admin.dash.sessions"></div>
         </div>
         <div class="stat">
             <div class="stat-value">{{ tokens.len() }}</div>
-            <div class="stat-label" data-i18n="admin.tokens.all">Codes</div>
+            <div class="stat-label" data-i18n="admin.tokens.all"></div>
         </div>
         <div class="stat">
             <div class="stat-value">{{ plans.len() }}</div>
-            <div class="stat-label" data-i18n="admin.plans.all">Drafitra</div>
+            <div class="stat-label" data-i18n="admin.plans.all"></div>
         </div>
     </div>
 
@@ -32,32 +32,32 @@
         <summary class="section-header">
             <h2>
                 <svg class="section-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 4l4 4-4 4"/></svg>
-                <span data-i18n="admin.tokens.generate">Mamorona code vaovao</span>
+                <span data-i18n="admin.tokens.generate"></span>
             </h2>
         </summary>
         <div class="section-body">
             <form method="post" action="/admin/manage" class="mt-sm">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <div class="form-group">
-                    <label for="token_name" data-i18n="admin.tokens.name">Anarana</label>
-                    <input type="text" id="token_name" name="name" required placeholder="ex: Promo weekend">
+                    <label for="token_name" data-i18n="admin.tokens.name"></label>
+                    <input type="text" id="token_name" name="name" required data-i18n-placeholder="admin.tokens.name_placeholder">
                 </div>
                 <div class="flex gap-md" style="flex-wrap:wrap">
                     <div class="form-group" style="flex:2;min-width:10rem">
-                        <label for="plan_id" data-i18n="admin.tokens.select_plan">Drafitra</label>
+                        <label for="plan_id" data-i18n="admin.tokens.select_plan"></label>
                         <select id="plan_id" name="plan_id" required>
-                            <option value="" data-i18n="admin.tokens.select_plan">Misafidiana...</option>
+                            <option value="" data-i18n="admin.tokens.select_option"></option>
                             {% for p in plans %}
                             <option value="{{ p.id }}">{{ p.name }} ({{ p.duration_minutes }}min / {{ p.price_ariary }}Ar)</option>
                             {% endfor %}
                         </select>
                     </div>
                     <div class="form-group" style="flex:1;min-width:6rem">
-                        <label for="count" data-i18n="admin.tokens.quantity">Isa</label>
+                        <label for="count" data-i18n="admin.tokens.quantity"></label>
                         <input type="number" id="count" name="count" min="1" max="100" value="1">
                     </div>
                 </div>
-                <button type="submit" class="btn btn--primary" data-i18n="admin.tokens.submit">Mamorona</button>
+                <button type="submit" class="btn btn--primary" data-i18n="admin.tokens.submit"></button>
             </form>
         </div>
     </details>
@@ -67,27 +67,27 @@
         <summary class="section-header">
             <h2>
                 <svg class="section-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 4l4 4-4 4"/></svg>
-                <span data-i18n="admin.plans.create">Mamorona drafitra vaovao</span>
+                <span data-i18n="admin.plans.create"></span>
             </h2>
         </summary>
         <div class="section-body">
             <form method="post" action="/admin/manage" class="mt-sm">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <div class="form-group">
-                    <label for="plan_name" data-i18n="admin.plans.name">Anarana</label>
-                    <input type="text" id="plan_name" name="plan_name" required placeholder="1h WiFi">
+                    <label for="plan_name" data-i18n="admin.plans.name"></label>
+                    <input type="text" id="plan_name" name="plan_name" required data-i18n-placeholder="admin.plans.name_placeholder">
                 </div>
                 <div class="flex gap-md" style="flex-wrap:wrap">
                     <div class="form-group" style="flex:1;min-width:8rem">
-                        <label for="duration" data-i18n="admin.plans.duration">Faharetan'ny (min)</label>
+                        <label for="duration" data-i18n="admin.plans.duration"></label>
                         <input type="number" id="duration" name="duration" min="1" value="60">
                     </div>
                     <div class="form-group" style="flex:1;min-width:8rem">
-                        <label for="price" data-i18n="admin.plans.price">Vidiny (Ar)</label>
+                        <label for="price" data-i18n="admin.plans.price"></label>
                         <input type="number" id="price" name="price" min="0" value="1000">
                     </div>
                 </div>
-                <button type="submit" class="btn btn--primary" data-i18n="admin.plans.submit">Mamorona</button>
+                <button type="submit" class="btn btn--primary" data-i18n="admin.plans.submit"></button>
             </form>
         </div>
     </details>
@@ -97,22 +97,22 @@
         <summary class="section-header">
             <h2>
                 <svg class="section-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 4l4 4-4 4"/></svg>
-                <span data-i18n="admin.dash.sessions">Sessions</span>
+                <span data-i18n="admin.dash.sessions"></span>
                 <span class="section-count">{{ sessions.len() }}</span>
             </h2>
         </summary>
         <div class="section-body">
             {% if sessions.is_empty() %}
-            <p class="text-muted text-sm" data-i18n="admin.sessions.none">Tsy misy session.</p>
+            <p class="text-muted text-sm" data-i18n="admin.sessions.none"></p>
             {% else %}
             <div class="table-wrap">
                 <table>
                     <thead>
                         <tr>
-                            <th>Code</th>
-                            <th>MAC</th>
-                            <th data-i18n="admin.sessions.col_remaining">Sisa</th>
-                            <th><span class="sr-only">Actions</span></th>
+                            <th data-i18n="admin.dash.col_code"></th>
+                            <th data-i18n="admin.dash.col_mac"></th>
+                            <th data-i18n="admin.dash.col_remaining"></th>
+                            <th><span class="sr-only" data-i18n="admin.common.actions"></span></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -124,7 +124,7 @@
                             <td><code class="text-xs">{{ s.mac_address }}</code></td>
                             <td>{{ s.remaining_seconds() / 60 }} min</td>
                             <td>
-                                <button type="button" class="btn btn--danger btn--sm" data-disconnect="{{ s.id }}" aria-label="Disconnect">
+                                <button type="button" class="btn btn--danger btn--sm" data-disconnect="{{ s.id }}" data-i18n-aria="admin.dash.disconnect">
                                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
                                 </button>
                             </td>
@@ -142,24 +142,24 @@
         <summary class="section-header">
             <h2>
                 <svg class="section-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 4l4 4-4 4"/></svg>
-                <span data-i18n="admin.tokens.all">Codes</span>
+                <span data-i18n="admin.tokens.all"></span>
                 <span class="section-count">{{ tokens.len() }}</span>
             </h2>
 
         </summary>
         <div class="section-body">
             {% if tokens.is_empty() %}
-            <p class="text-muted text-sm">Tsy misy code.</p>
+            <p class="text-muted text-sm" data-i18n="admin.tokens.none"></p>
             {% else %}
             <div class="table-wrap">
                 <table>
                     <thead>
                         <tr>
-                            <th data-i18n="admin.tokens.col_name">Anarana</th>
-                            <th data-i18n="admin.tokens.col_plan">Drafitra</th>
-                            <th data-i18n="admin.tokens.col_code">Code</th>
-                            <th data-i18n="admin.tokens.col_status">Sata</th>
-                            <th><span class="sr-only">Actions</span></th>
+                            <th data-i18n="admin.tokens.col_name"></th>
+                            <th data-i18n="admin.tokens.col_plan"></th>
+                            <th data-i18n="admin.tokens.col_code"></th>
+                            <th data-i18n="admin.tokens.col_status"></th>
+                            <th><span class="sr-only" data-i18n="admin.common.actions"></span></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -170,17 +170,17 @@
                             <td><code{% if t.status == "unused" %} class="copyable"{% endif %}>{{ t.code }}</code></td>
                             <td>
                                 {% if t.status == "unused" %}
-                                <span class="badge badge--unused" data-i18n="status.unused">mbola tsy nampiasaina</span>
+                                <span class="badge badge--unused" data-i18n="status.unused"></span>
                                 {% else if t.status == "active" %}
-                                <span class="badge badge--active" data-i18n="status.active">mandeha</span>
+                                <span class="badge badge--active" data-i18n="status.active"></span>
                                 {% else if t.status == "expired" %}
-                                <span class="badge badge--expired" data-i18n="status.expired">tapitra</span>
+                                <span class="badge badge--expired" data-i18n="status.expired"></span>
                                 {% else %}
-                                <span class="badge badge--expired" data-i18n="status.revoked">nesorina</span>
+                                <span class="badge badge--expired" data-i18n="status.revoked"></span>
                                 {% endif %}
                             </td>
                             <td>
-                                <button type="button" class="btn btn--outline btn--sm" data-copy-code="{{ t.code }}" aria-label="Copy code" data-i18n="admin.tokens.copy">
+                                <button type="button" class="btn btn--outline btn--sm" data-copy-code="{{ t.code }}" data-i18n-aria="admin.tokens.copy">
                                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="5" width="9" height="9" rx="1"/><path d="M2 11V2.5A.5.5 0 012.5 2H11"/></svg>
                                 </button>
                             </td>
@@ -198,23 +198,23 @@
         <summary class="section-header">
             <h2>
                 <svg class="section-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 4l4 4-4 4"/></svg>
-                <span data-i18n="admin.plans.all">Drafitra</span>
+                <span data-i18n="admin.plans.all"></span>
                 <span class="section-count">{{ plans.len() }}</span>
             </h2>
         </summary>
         <div class="section-body">
             {% if plans.is_empty() %}
-            <p class="text-muted text-sm">Tsy misy drafitra.</p>
+            <p class="text-muted text-sm" data-i18n="admin.plans.none"></p>
             {% else %}
             <div class="table-wrap">
                 <table>
                     <thead>
                         <tr>
-                            <th data-i18n="admin.plans.col_name">Anarana</th>
-                            <th data-i18n="admin.plans.col_duration">Min</th>
-                            <th data-i18n="admin.plans.col_price">Ariary</th>
-                            <th data-i18n="admin.plans.col_status">Sata</th>
-                            <th><span class="sr-only">Actions</span></th>
+                            <th data-i18n="admin.plans.col_name"></th>
+                            <th data-i18n="admin.plans.col_duration"></th>
+                            <th data-i18n="admin.plans.col_price"></th>
+                            <th data-i18n="admin.plans.col_status"></th>
+                            <th><span class="sr-only" data-i18n="admin.common.actions"></span></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -225,9 +225,9 @@
                             <td>{{ p.price_ariary }} Ar</td>
                             <td>
                                 {% if p.active %}
-                                <span class="badge badge--active" data-i18n="admin.plans.active">Mavitrika</span>
+                                <span class="badge badge--active" data-i18n="admin.plans.active"></span>
                                 {% else %}
-                                <span class="badge badge--expired" data-i18n="admin.plans.inactive">Tsy mavitrika</span>
+                                <span class="badge badge--expired" data-i18n="admin.plans.inactive"></span>
                                 {% endif %}
                             </td>
                             <td class="flex gap-sm">
@@ -236,15 +236,15 @@
                                     data-plan-name="{{ p.name }}"
                                     data-plan-duration="{{ p.duration_minutes }}"
                                     data-plan-price="{{ p.price_ariary }}"
-                                    aria-label="Edit">
+                                    data-i18n-aria="admin.plans.edit">
                                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11.5 1.5l3 3L5 14H2v-3L11.5 1.5z"/></svg>
                                 </button>
                                 {% if p.active %}
-                                <button type="button" class="btn btn--danger btn--sm" data-toggle-plan="{{ p.id }}" data-activate="false" aria-label="Deactivate">
+                                <button type="button" class="btn btn--danger btn--sm" data-toggle-plan="{{ p.id }}" data-activate="false" data-i18n-aria="admin.plans.deactivate">
                                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
                                 </button>
                                 {% else %}
-                                <button type="button" class="btn btn--primary btn--sm" data-toggle-plan="{{ p.id }}" data-activate="true" aria-label="Activate">
+                                <button type="button" class="btn btn--primary btn--sm" data-toggle-plan="{{ p.id }}" data-activate="true" data-i18n-aria="admin.plans.activate">
                                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 8l4 4 6-8"/></svg>
                                 </button>
                                 {% endif %}
@@ -267,28 +267,28 @@
 <dialog id="edit-modal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
-            <h2 data-i18n="admin.plans.edit">Fahasahana drafitra</h2>
-            <button type="button" class="btn btn--outline btn--sm" data-action="close-modal" aria-label="Close">
+            <h2 data-i18n="admin.plans.edit"></h2>
+            <button type="button" class="btn btn--outline btn--sm" data-action="close-modal" data-i18n-aria="admin.common.close">
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
             </button>
         </div>
         <form id="edit-plan-form">
             <input type="hidden" id="edit-id">
             <div class="form-group">
-                <label for="edit-name" data-i18n="admin.plans.name">Anarana</label>
+                <label for="edit-name" data-i18n="admin.plans.name"></label>
                 <input type="text" id="edit-name" required>
             </div>
             <div class="form-group">
-                <label for="edit-duration" data-i18n="admin.plans.duration">Faharetan'ny (min)</label>
+                <label for="edit-duration" data-i18n="admin.plans.duration"></label>
                 <input type="number" id="edit-duration" min="1" required>
             </div>
             <div class="form-group">
-                <label for="edit-price" data-i18n="admin.plans.price">Vidiny (Ar)</label>
+                <label for="edit-price" data-i18n="admin.plans.price"></label>
                 <input type="number" id="edit-price" min="0" required>
             </div>
             <div class="mt-md flex gap-sm">
-                <button type="button" class="btn btn--outline" data-action="close-modal" data-i18n="admin.plans.cancel">Aoka</button>
-                <button type="submit" class="btn btn--primary" data-i18n="admin.plans.save">Tehirizo</button>
+                <button type="button" class="btn btn--outline" data-action="close-modal" data-i18n="admin.plans.cancel"></button>
+                <button type="submit" class="btn btn--primary" data-i18n="admin.plans.save"></button>
             </div>
         </form>
     </div>

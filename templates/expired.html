@@ -8,7 +8,7 @@
     <div class="card text-center">
         <div class="brand">
             <div class="brand-icon" aria-hidden="true">{{ cafe_name.chars().next().unwrap_or('D') }}</div>
-            <h1 data-i18n="expired.title">Tapitra ny fotoana</h1>
+            <h1 data-i18n="expired.title"></h1>
         </div>
 
         <div class="progress-ring-wrap" aria-hidden="true">
@@ -18,25 +18,21 @@
             <span class="progress-ring-icon" style="color: var(--c-danger);">&#10007;</span>
         </div>
 
-        <p class="mt-md" data-i18n="expired.message">Tapitra ny fidirana amin'ny internet.</p>
-        <p class="text-muted text-sm mt-sm" data-i18n="expired.hint">
-            Mankanesa any amin'ny mpiasa mba hividianana code vaovao.
-        </p>
+        <p class="mt-md" data-i18n="expired.message"></p>
+        <p class="text-muted text-sm mt-sm" data-i18n="expired.hint"></p>
 
-        <a href="/portal" class="btn btn--primary mt-lg" data-i18n="expired.new_token">
-            Hampiditra code vaovao
-        </a>
+        <a href="/portal" class="btn btn--primary mt-lg" data-i18n="expired.new_token"></a>
 
         {% if !contact_phone.is_empty() || !contact_name.is_empty() %}
         <div class="contact-info mt-lg">
             {% if !contact_name.is_empty() %}
-            <p class="text-sm"><span data-i18n="plans.contact_name">Tompon'ny:</span> {{ contact_name }}</p>
+            <p class="text-sm"><span data-i18n="plans.contact_name"></span> {{ contact_name }}</p>
             {% endif %}
             {% if !contact_phone.is_empty() %}
-            <p class="text-sm"><span data-i18n="plans.contact_phone">Finday:</span> <a href="tel:{{ contact_phone }}">{{ contact_phone }}</a></p>
+            <p class="text-sm"><span data-i18n="plans.contact_phone"></span> <a href="tel:{{ contact_phone }}">{{ contact_phone }}</a></p>
             {% endif %}
             {% if !contact_hours.is_empty() %}
-            <p class="text-sm"><span data-i18n="plans.contact_hours">Ora fiasana:</span> {{ contact_hours }}</p>
+            <p class="text-sm"><span data-i18n="plans.contact_hours"></span> {{ contact_hours }}</p>
             {% endif %}
         </div>
         {% endif %}
