@@ -112,7 +112,7 @@ struct ManageTemplate {
 #[derive(Template)]
 #[template(path = "admin/audit.html")]
 struct AuditTemplate {
-    entries: Vec<crate::db::AuditLogEntry>,
+    audit_page: crate::db::AuditPage,
     cafe_name: String,
     current_page: String,
     theme_css: String,
@@ -134,12 +134,21 @@ struct SettingsTemplate {
 /// Tokens per page in the manage view.
 const TOKENS_PER_PAGE: i64 = 50;
 
+/// Audit log entries per page.
+const AUDIT_PER_PAGE: i64 = 50;
+
 #[derive(Deserialize)]
 pub struct ManageQuery {
     /// Token status filter: "all", "current" (default), "unused", "active", "expired", "revoked"
     token_status: Option<String>,
     /// 1-indexed page number (default: 1)
     token_page: Option<i64>,
+}
+
+#[derive(Deserialize)]
+pub struct AuditQuery {
+    /// 1-indexed page number (default: 1)
+    page: Option<i64>,
 }
 
 #[derive(Deserialize)]
@@ -554,12 +563,20 @@ async fn load_manage_data(
 async fn audit_page(
     State(state): State<Arc<AppState>>,
     _admin: AdminSession,
+    Query(query): Query<AuditQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let entries = state.db.get_audit_log(200).await
+    let page = query.page.unwrap_or(1).max(1);
+    let (entries, total) = state.db.get_audit_log_paged(page, AUDIT_PER_PAGE).await
         .map_err(AppError::Internal)?;
+    let audit_page = crate::db::AuditPage {
+        entries,
+        total,
+        page,
+        per_page: AUDIT_PER_PAGE,
+    };
     let ctx = admin_ctx(&state).await;
     render(&AuditTemplate {
-        entries,
+        audit_page,
         cafe_name: ctx.cafe_name,
         current_page: "audit".to_string(),
         theme_css: ctx.theme_css,

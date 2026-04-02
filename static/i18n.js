@@ -70,6 +70,13 @@ const TRANSLATIONS = {
     "admin.dash.chart_loading": "Miandry...",
     "admin.dash.chart_revenue": "Vola",
     "admin.dash.chart_tokens": "Code namidy",
+    "admin.dash.day_0": "Alah",
+    "admin.dash.day_1": "Alats",
+    "admin.dash.day_2": "Tal",
+    "admin.dash.day_3": "Alar",
+    "admin.dash.day_4": "Alak",
+    "admin.dash.day_5": "Zom",
+    "admin.dash.day_6": "Asab",
 
     // -- Admin Common --
     "admin.common.actions": "Hetsika",
@@ -127,6 +134,11 @@ const TRANSLATIONS = {
     "admin.audit.action_disconnect": "Fanapahana",
     "admin.audit.action_revoke": "Fanafoanana",
     "admin.audit.action_login_failed": "Tsy nahomby fidirana",
+
+    // -- Admin Audit Pagination --
+    "admin.audit.page_prev": "Aloha",
+    "admin.audit.page_next": "Manaraka",
+    "admin.audit.page_info": "Pejy {{page}} amin'ny {{total}}",
 
     // -- Admin Tokens (extra) --
     "admin.tokens.copy": "Kopia",
@@ -290,6 +302,13 @@ const TRANSLATIONS = {
     "admin.dash.chart_loading": "Chargement...",
     "admin.dash.chart_revenue": "Revenu",
     "admin.dash.chart_tokens": "Codes vendus",
+    "admin.dash.day_0": "Dim",
+    "admin.dash.day_1": "Lun",
+    "admin.dash.day_2": "Mar",
+    "admin.dash.day_3": "Mer",
+    "admin.dash.day_4": "Jeu",
+    "admin.dash.day_5": "Ven",
+    "admin.dash.day_6": "Sam",
 
     // -- Admin Common --
     "admin.common.actions": "Actions",
@@ -347,6 +366,11 @@ const TRANSLATIONS = {
     "admin.audit.action_disconnect": "Déconnexion",
     "admin.audit.action_revoke": "Révocation",
     "admin.audit.action_login_failed": "Échec connexion",
+
+    // -- Admin Audit Pagination --
+    "admin.audit.page_prev": "Précédent",
+    "admin.audit.page_next": "Suivant",
+    "admin.audit.page_info": "Page {{page}} sur {{total}}",
 
     // -- Admin Tokens (extra) --
     "admin.tokens.copy": "Copier",
@@ -510,6 +534,13 @@ const TRANSLATIONS = {
     "admin.dash.chart_loading": "Loading...",
     "admin.dash.chart_revenue": "Revenue",
     "admin.dash.chart_tokens": "Tokens sold",
+    "admin.dash.day_0": "Sun",
+    "admin.dash.day_1": "Mon",
+    "admin.dash.day_2": "Tue",
+    "admin.dash.day_3": "Wed",
+    "admin.dash.day_4": "Thu",
+    "admin.dash.day_5": "Fri",
+    "admin.dash.day_6": "Sat",
 
     // -- Admin Common --
     "admin.common.actions": "Actions",
@@ -567,6 +598,11 @@ const TRANSLATIONS = {
     "admin.audit.action_disconnect": "Disconnect",
     "admin.audit.action_revoke": "Revocation",
     "admin.audit.action_login_failed": "Login failed",
+
+    // -- Admin Audit Pagination --
+    "admin.audit.page_prev": "Previous",
+    "admin.audit.page_next": "Next",
+    "admin.audit.page_info": "Page {{page}} of {{total}}",
 
     // -- Admin Tokens (extra) --
     "admin.tokens.copy": "Copy",

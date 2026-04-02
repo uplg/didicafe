@@ -265,19 +265,28 @@ function formatK(v) {
 }
 
 /**
- * Format date "YYYY-MM-DD" → short day label. Uses short weekday if
- * the Intl API is available, otherwise falls back to "DD/MM".
+ * Format date "YYYY-MM-DD" → short localized day label using i18n keys.
+ * Uses admin.dash.day_0 (Sun) through admin.dash.day_6 (Sat).
  */
 function formatDayLabel(dateStr) {
     try {
         var parts = dateStr.split("-");
         var d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-        // Short weekday in Malagasy locale (falls back to browser default)
-        var wd = d.toLocaleDateString("mg", { weekday: "short" });
-        if (wd && wd !== dateStr) return wd;
+        var dayKey = "admin.dash.day_" + d.getDay();
+        var label = t(dayKey);
+        if (label && label !== dayKey) return label;
     } catch (e) { /* fallback */ }
     // Fallback: DD/MM
     return dateStr.slice(8) + "/" + dateStr.slice(5, 7);
+}
+
+/**
+ * Format date "YYYY-MM-DD" → localized tooltip date, e.g. "Lun 28/03".
+ */
+function formatTooltipDate(dateStr) {
+    var dayLabel = formatDayLabel(dateStr);
+    var ddmm = dateStr.slice(8) + "/" + dateStr.slice(5, 7);
+    return dayLabel + " " + ddmm;
 }
 
 /**
@@ -293,7 +302,7 @@ function setupChartTooltip(wrap, days, revenues, tokens, xPos) {
             var idx = parseInt(rect.getAttribute("data-chart-idx"), 10);
             var day = days[idx];
             tooltip.innerHTML =
-                '<div class="chart-tooltip-date">' + escHtml(day.date) + '</div>' +
+                '<div class="chart-tooltip-date">' + escHtml(formatTooltipDate(day.date)) + '</div>' +
                 '<div class="chart-tooltip-row"><span class="chart-tooltip-dot" style="background:var(--c-primary)"></span>' + day.revenue_ariary + ' Ar</div>' +
                 '<div class="chart-tooltip-row"><span class="chart-tooltip-dot" style="background:var(--c-success)"></span>' + day.tokens_sold + ' ' + t("admin.dash.chart_tokens") + '</div>';
 

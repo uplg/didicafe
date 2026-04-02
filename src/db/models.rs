@@ -240,3 +240,35 @@ impl TokenPage {
         format!("?token_status={}&token_page={}", self.status_filter, page)
     }
 }
+
+/// Pagination metadata for audit log listings.
+#[derive(Debug, Clone)]
+pub struct AuditPage {
+    pub entries: Vec<AuditLogEntry>,
+    pub total: i64,
+    pub page: i64,
+    pub per_page: i64,
+}
+
+impl AuditPage {
+    pub fn total_pages(&self) -> i64 {
+        if self.per_page <= 0 {
+            return 1;
+        }
+        (self.total + self.per_page - 1) / self.per_page
+    }
+
+    pub fn has_prev(&self) -> bool {
+        self.page > 1
+    }
+
+    pub fn has_next(&self) -> bool {
+        self.page < self.total_pages()
+    }
+
+    /// Build a query string for pagination links.
+    /// Example: `?page=2`
+    pub fn query_string(&self, page: i64) -> String {
+        format!("?page={page}")
+    }
+}

@@ -457,6 +457,33 @@ impl Database {
         Ok(entries)
     }
 
+    /// List audit log entries with server-side pagination.
+    ///
+    /// Returns `(entries, total_count)` where `total_count` is the full count
+    /// before LIMIT/OFFSET (for computing page count).
+    pub async fn get_audit_log_paged(
+        &self,
+        page: i64,
+        per_page: i64,
+    ) -> Result<(Vec<AuditLogEntry>, i64)> {
+        let offset = (page - 1) * per_page;
+
+        let (total,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM audit_log")
+            .fetch_one(&self.pool)
+            .await?;
+
+        let entries = sqlx::query_as::<_, AuditLogEntry>(
+            "SELECT id, timestamp, admin_user, action, target_type, target_id, detail \
+             FROM audit_log ORDER BY timestamp DESC LIMIT ? OFFSET ?",
+        )
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok((entries, total))
+    }
+
     /// Purge audit log entries older than `retention_days`.
     pub async fn purge_audit_log(&self, retention_days: i64) -> Result<u64> {
         let result = sqlx::query(
@@ -1048,5 +1075,49 @@ mod tests {
         let (expired, total) = db.list_tokens_paged(Some("expired"), 1, 50).await.unwrap();
         assert_eq!(total, 0);
         assert!(expired.is_empty());
+    }
+
+    // -- Paginated audit log --
+
+    #[tokio::test]
+    async fn test_get_audit_log_paged_empty() {
+        let db = test_db().await;
+        let (entries, total) = db.get_audit_log_paged(1, 50).await.unwrap();
+        assert!(entries.is_empty());
+        assert_eq!(total, 0);
+    }
+
+    #[tokio::test]
+    async fn test_get_audit_log_paged_with_data() {
+        let db = test_db().await;
+        for i in 0..5 {
+            db.audit_log("admin", &format!("action_{i}"), None, None, None).await.unwrap();
+        }
+        let (entries, total) = db.get_audit_log_paged(1, 50).await.unwrap();
+        assert_eq!(total, 5);
+        assert_eq!(entries.len(), 5);
+    }
+
+    #[tokio::test]
+    async fn test_get_audit_log_paged_limit_offset() {
+        let db = test_db().await;
+        for i in 0..5 {
+            db.audit_log("admin", &format!("action_{i}"), None, None, None).await.unwrap();
+        }
+
+        // Page 1 of 2 (per_page=3)
+        let (page1, total) = db.get_audit_log_paged(1, 3).await.unwrap();
+        assert_eq!(total, 5);
+        assert_eq!(page1.len(), 3);
+
+        // Page 2 of 2
+        let (page2, total) = db.get_audit_log_paged(2, 3).await.unwrap();
+        assert_eq!(total, 5);
+        assert_eq!(page2.len(), 2);
+
+        // Page 3 — beyond data
+        let (page3, total) = db.get_audit_log_paged(3, 3).await.unwrap();
+        assert_eq!(total, 5);
+        assert!(page3.is_empty());
     }
 }

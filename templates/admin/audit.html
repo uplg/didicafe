@@ -6,7 +6,7 @@
 <div class="card">
     <h1 data-i18n="admin.audit.title"></h1>
 
-    {% if entries.is_empty() %}
+    {% if audit_page.entries.is_empty() %}
     <p class="text-muted text-sm mt-sm" data-i18n="admin.audit.none"></p>
     {% else %}
     <div class="table-wrap mt-md">
@@ -21,7 +21,7 @@
                 </tr>
             </thead>
             <tbody>
-                {% for e in entries %}
+                {% for e in audit_page.entries %}
                 <tr>
                     <td class="text-xs text-muted">{{ e.timestamp }}</td>
                     <td><code class="text-xs">{{ e.admin_user }}</code></td>
@@ -61,6 +61,19 @@
             </tbody>
         </table>
     </div>
+
+    <!-- Pagination -->
+    {% if audit_page.total_pages() > 1 %}
+    <nav class="pagination mt-md" aria-label="Audit pagination">
+        {% if audit_page.has_prev() %}
+        <a href="/admin/audit{{ audit_page.query_string(audit_page.page - 1) }}" class="btn btn--outline btn--sm" data-i18n="admin.audit.page_prev"></a>
+        {% endif %}
+        <span class="pagination-info" data-i18n="admin.audit.page_info" data-i18n-args="{&quot;page&quot;:&quot;{{ audit_page.page }}&quot;,&quot;total&quot;:&quot;{{ audit_page.total_pages() }}&quot;}"></span>
+        {% if audit_page.has_next() %}
+        <a href="/admin/audit{{ audit_page.query_string(audit_page.page + 1) }}" class="btn btn--outline btn--sm" data-i18n="admin.audit.page_next"></a>
+        {% endif %}
+    </nav>
+    {% endif %}
     {% endif %}
 </div>
 {% endblock %}
