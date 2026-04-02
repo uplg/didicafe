@@ -31,6 +31,17 @@ const TOKEN_LIST_BY_STATUS: &str =
             t.redeemed_at, t.expires_at, p.duration_minutes, p.name as plan_name \
      FROM token t JOIN plan p ON t.plan_id = p.id WHERE t.status = ?1 ORDER BY t.created_at DESC";
 
+/// Tokens that are unused or active (the default admin view — what matters day-to-day).
+const TOKEN_LIST_CURRENT: &str =
+    "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
+            t.redeemed_at, t.expires_at, p.duration_minutes, p.name as plan_name \
+     FROM token t JOIN plan p ON t.plan_id = p.id \
+     WHERE t.status IN ('unused', 'active') ORDER BY t.created_at DESC";
+
+const TOKEN_COUNT_ALL: &str = "SELECT COUNT(*) FROM token";
+const TOKEN_COUNT_BY_STATUS: &str = "SELECT COUNT(*) FROM token WHERE status = ?1";
+const TOKEN_COUNT_CURRENT: &str = "SELECT COUNT(*) FROM token WHERE status IN ('unused', 'active')";
+
 const SESSION_ACTIVE: &str =
     "SELECT s.id, s.token_id, s.mac_address, s.ip_address, s.started_at, s.expires_at, s.status, \
             t.code as token_code, t.name as token_name, p.name as plan_name \
@@ -248,6 +259,62 @@ impl Database {
             }
         };
         Ok(tokens)
+    }
+
+    /// List tokens with server-side pagination.
+    ///
+    /// `status_filter`:
+    ///   - `None` → all tokens
+    ///   - `Some("current")` → unused + active (the default admin view)
+    ///   - `Some("unused"|"active"|"expired"|"revoked")` → single status
+    ///
+    /// Returns `(tokens, total_count)` where `total_count` is the count
+    /// **before** applying LIMIT/OFFSET (for computing page count).
+    pub async fn list_tokens_paged(
+        &self,
+        status_filter: Option<&str>,
+        page: i64,
+        per_page: i64,
+    ) -> Result<(Vec<Token>, i64)> {
+        let offset = (page - 1) * per_page;
+
+        let (count_query, list_query, bind_status) = match status_filter {
+            Some("current") => (TOKEN_COUNT_CURRENT, TOKEN_LIST_CURRENT, None),
+            Some(status) => (TOKEN_COUNT_BY_STATUS, TOKEN_LIST_BY_STATUS, Some(status)),
+            None => (TOKEN_COUNT_ALL, TOKEN_LIST, None),
+        };
+
+        // 1. Count total matching rows
+        let total: i64 = if let Some(status) = bind_status {
+            let (count,): (i64,) = sqlx::query_as(count_query)
+                .bind(status)
+                .fetch_one(&self.pool)
+                .await?;
+            count
+        } else {
+            let (count,): (i64,) = sqlx::query_as(count_query)
+                .fetch_one(&self.pool)
+                .await?;
+            count
+        };
+
+        // 2. Fetch the page
+        let tokens = if let Some(status) = bind_status {
+            sqlx::query_as::<_, Token>(&format!("{list_query} LIMIT ?2 OFFSET ?3"))
+                .bind(status)
+                .bind(per_page)
+                .bind(offset)
+                .fetch_all(&self.pool)
+                .await?
+        } else {
+            sqlx::query_as::<_, Token>(&format!("{list_query} LIMIT ? OFFSET ?"))
+                .bind(per_page)
+                .bind(offset)
+                .fetch_all(&self.pool)
+                .await?
+        };
+
+        Ok((tokens, total))
     }
 
     pub async fn revoke_token(&self, token_id: i64) -> Result<()> {
@@ -881,5 +948,105 @@ mod tests {
             assert_eq!(day.tokens_sold, 0);
             assert_eq!(day.revenue_ariary, 0);
         }
+    }
+
+    // -- Paginated token listing --
+
+    #[tokio::test]
+    async fn test_list_tokens_paged_empty() {
+        let db = test_db().await;
+        let (tokens, total) = db.list_tokens_paged(None, 1, 50).await.unwrap();
+        assert!(tokens.is_empty());
+        assert_eq!(total, 0);
+    }
+
+    #[tokio::test]
+    async fn test_list_tokens_paged_all() {
+        let db = test_db().await;
+        let plan_id = db.create_plan("WiFi 1h", 60, 1000).await.unwrap();
+        for i in 0..5 {
+            db.create_token(&format!("CODE-{i:04}"), Some("test"), plan_id).await.unwrap();
+        }
+        let (tokens, total) = db.list_tokens_paged(None, 1, 50).await.unwrap();
+        assert_eq!(total, 5);
+        assert_eq!(tokens.len(), 5);
+    }
+
+    #[tokio::test]
+    async fn test_list_tokens_paged_limit_offset() {
+        let db = test_db().await;
+        let plan_id = db.create_plan("WiFi 1h", 60, 1000).await.unwrap();
+        for i in 0..5 {
+            db.create_token(&format!("CODE-{i:04}"), Some("test"), plan_id).await.unwrap();
+        }
+
+        // Page 1 of 2 (per_page=3)
+        let (page1, total) = db.list_tokens_paged(None, 1, 3).await.unwrap();
+        assert_eq!(total, 5);
+        assert_eq!(page1.len(), 3);
+
+        // Page 2 of 2
+        let (page2, total) = db.list_tokens_paged(None, 2, 3).await.unwrap();
+        assert_eq!(total, 5);
+        assert_eq!(page2.len(), 2);
+
+        // Page 3 — beyond data
+        let (page3, total) = db.list_tokens_paged(None, 3, 3).await.unwrap();
+        assert_eq!(total, 5);
+        assert!(page3.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_list_tokens_paged_current_filter() {
+        let db = test_db().await;
+        let plan_id = db.create_plan("WiFi 1h", 60, 1000).await.unwrap();
+
+        // Create 3 unused tokens
+        for i in 0..3 {
+            db.create_token(&format!("UNUSED-{i:04}"), Some("test"), plan_id).await.unwrap();
+        }
+        // Create 1 active token (redeem it)
+        let active_id = db.create_token("ACTIVE-0001", Some("test"), plan_id).await.unwrap();
+        db.redeem_token(active_id, "2099-12-31 23:59:59").await.unwrap();
+
+        // Create 1 expired token
+        let expired_id = db.create_token("EXPIRED-001", Some("test"), plan_id).await.unwrap();
+        db.redeem_token(expired_id, "2020-01-01 00:00:00").await.unwrap();
+        db.expire_token(expired_id).await.unwrap();
+
+        // "current" = unused + active → 4 tokens
+        let (tokens, total) = db.list_tokens_paged(Some("current"), 1, 50).await.unwrap();
+        assert_eq!(total, 4);
+        assert_eq!(tokens.len(), 4);
+        for t in &tokens {
+            assert!(t.status == "unused" || t.status == "active");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_list_tokens_paged_single_status_filter() {
+        let db = test_db().await;
+        let plan_id = db.create_plan("WiFi 1h", 60, 1000).await.unwrap();
+
+        db.create_token("UNUSED-0001", Some("u"), plan_id).await.unwrap();
+        let active_id = db.create_token("ACTIVE-0001", Some("a"), plan_id).await.unwrap();
+        db.redeem_token(active_id, "2099-12-31 23:59:59").await.unwrap();
+
+        // Filter: unused only
+        let (unused, total) = db.list_tokens_paged(Some("unused"), 1, 50).await.unwrap();
+        assert_eq!(total, 1);
+        assert_eq!(unused.len(), 1);
+        assert_eq!(unused[0].status, "unused");
+
+        // Filter: active only
+        let (active, total) = db.list_tokens_paged(Some("active"), 1, 50).await.unwrap();
+        assert_eq!(total, 1);
+        assert_eq!(active.len(), 1);
+        assert_eq!(active[0].status, "active");
+
+        // Filter: expired → 0
+        let (expired, total) = db.list_tokens_paged(Some("expired"), 1, 50).await.unwrap();
+        assert_eq!(total, 0);
+        assert!(expired.is_empty());
     }
 }

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::{
     Form,
     Router,
-    extract::{ConnectInfo, State},
+    extract::{ConnectInfo, Query, State},
     http::{StatusCode, header::SET_COOKIE},
     response::{AppendHeaders, IntoResponse, Redirect},
     routing::{get, post},
@@ -99,7 +99,7 @@ struct DashboardTemplate {
 #[derive(Template)]
 #[template(path = "admin/manage.html")]
 struct ManageTemplate {
-    tokens: Vec<crate::db::Token>,
+    token_page: crate::db::TokenPage,
     plans: Vec<crate::db::Plan>,
     sessions: Vec<crate::db::Session>,
     message: Option<I18nMessage>,
@@ -130,6 +130,17 @@ struct SettingsTemplate {
 }
 
 // -- Forms --
+
+/// Tokens per page in the manage view.
+const TOKENS_PER_PAGE: i64 = 50;
+
+#[derive(Deserialize)]
+pub struct ManageQuery {
+    /// Token status filter: "all", "current" (default), "unused", "active", "expired", "revoked"
+    token_status: Option<String>,
+    /// 1-indexed page number (default: 1)
+    token_page: Option<i64>,
+}
 
 #[derive(Deserialize)]
 pub struct LoginForm {
@@ -373,11 +384,13 @@ async fn manage_page(
     State(state): State<Arc<AppState>>,
     _admin: AdminSession,
     csrf: CsrfToken,
+    Query(query): Query<ManageQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let (tokens, plans, sessions) = load_manage_data(&state).await?;
+    let (status_filter, page) = parse_token_query(&query);
+    let (token_page, plans, sessions) = load_manage_data(&state, &status_filter, page).await?;
     let ctx = admin_ctx(&state).await;
     render(&ManageTemplate {
-        tokens,
+        token_page,
         plans,
         sessions,
         message: None,
@@ -457,10 +470,10 @@ async fn manage_submit(
         None
     };
 
-    let (tokens, plans, sessions) = load_manage_data(&state).await?;
+    let (token_page, plans, sessions) = load_manage_data(&state, "current", 1).await?;
     let ctx = admin_ctx(&state).await;
     render(&ManageTemplate {
-        tokens,
+        token_page,
         plans,
         sessions,
         message,
@@ -493,14 +506,48 @@ pub fn validate_plan_input(name: &str, duration: i64, price: i64) -> Result<(), 
     Ok(())
 }
 
-/// Load all manage page data (tokens, plans, sessions) in one place.
+/// Parse and validate token query params from the manage page URL.
+/// Returns (status_filter, page) with safe defaults.
+///
+/// The status filter is always `Some(...)`:
+///   - `"current"` (default) → unused + active
+///   - `"all"` → no filter
+///   - `"unused"` / `"active"` / `"expired"` / `"revoked"` → single status
+fn parse_token_query(query: &ManageQuery) -> (String, i64) {
+    let status_filter = match query.token_status.as_deref() {
+        Some("all") => "all".to_string(),
+        Some("unused") => "unused".to_string(),
+        Some("active") => "active".to_string(),
+        Some("expired") => "expired".to_string(),
+        Some("revoked") => "revoked".to_string(),
+        _ => "current".to_string(), // default: unused + active
+    };
+    let page = query.token_page.unwrap_or(1).max(1);
+    (status_filter, page)
+}
+
+/// Load all manage page data (token page, plans, sessions).
 async fn load_manage_data(
     state: &Arc<AppState>,
-) -> Result<(Vec<crate::db::Token>, Vec<crate::db::Plan>, Vec<crate::db::Session>), AppError> {
-    let tokens = state.db.list_tokens(None).await.map_err(AppError::Internal)?;
+    status_filter: &str,
+    page: i64,
+) -> Result<(crate::db::TokenPage, Vec<crate::db::Plan>, Vec<crate::db::Session>), AppError> {
+    let db_filter = match status_filter {
+        "all" => None,
+        other => Some(other),
+    };
+    let (tokens, total) = state.db.list_tokens_paged(db_filter, page, TOKENS_PER_PAGE).await
+        .map_err(AppError::Internal)?;
+    let token_page = crate::db::TokenPage {
+        tokens,
+        total,
+        page,
+        per_page: TOKENS_PER_PAGE,
+        status_filter: status_filter.to_string(),
+    };
     let plans = state.db.list_plans().await.map_err(AppError::Internal)?;
     let sessions = state.db.get_active_sessions().await.map_err(AppError::Internal)?;
-    Ok((tokens, plans, sessions))
+    Ok((token_page, plans, sessions))
 }
 
 /// GET /admin/audit — audit log viewer (requires auth)

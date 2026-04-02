@@ -1471,3 +1471,50 @@ dialog.modal .form-group input {
   font-size: 0.875rem;
   line-height: 1.7;
 }
+
+/* --- Filter tabs (token status) --- */
+.filter-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-xs);
+  border-bottom: 2px solid var(--c-border);
+  padding-bottom: var(--s-xs);
+}
+
+.filter-tab {
+  padding: var(--s-xs) var(--s-sm);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--c-text-muted);
+  text-decoration: none;
+  border-radius: var(--r-sm) var(--r-sm) 0 0;
+  border: 1px solid transparent;
+  border-bottom: none;
+  transition: color 0.15s, background 0.15s;
+  margin-bottom: -2px;
+}
+
+.filter-tab:hover {
+  color: var(--c-text);
+  background: var(--c-bg-offset);
+}
+
+.filter-tab.active {
+  color: var(--c-primary);
+  border-color: var(--c-border);
+  border-bottom: 2px solid var(--c-bg);
+  background: var(--c-bg);
+}
+
+/* --- Pagination --- */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-sm);
+}
+
+.pagination-info {
+  font-size: 0.8125rem;
+  color: var(--c-text-muted);
+}

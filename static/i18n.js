@@ -130,6 +130,11 @@ const TRANSLATIONS = {
 
     // -- Admin Tokens (extra) --
     "admin.tokens.copy": "Kopia",
+    "admin.tokens.filter_current": "Ankehitriny",
+    "admin.tokens.filter_all": "Rehetra",
+    "admin.tokens.page_prev": "Aloha",
+    "admin.tokens.page_next": "Manaraka",
+    "admin.tokens.page_info": "Pejy {{page}} amin'ny {{total}}",
 
     // -- Admin Manage --
     "admin.manage.title": "Fitantanana",
@@ -345,6 +350,11 @@ const TRANSLATIONS = {
 
     // -- Admin Tokens (extra) --
     "admin.tokens.copy": "Copier",
+    "admin.tokens.filter_current": "Courants",
+    "admin.tokens.filter_all": "Tous",
+    "admin.tokens.page_prev": "Précédent",
+    "admin.tokens.page_next": "Suivant",
+    "admin.tokens.page_info": "Page {{page}} sur {{total}}",
 
     // -- Admin Manage --
     "admin.manage.title": "Gestion",
@@ -560,6 +570,11 @@ const TRANSLATIONS = {
 
     // -- Admin Tokens (extra) --
     "admin.tokens.copy": "Copy",
+    "admin.tokens.filter_current": "Current",
+    "admin.tokens.filter_all": "All",
+    "admin.tokens.page_prev": "Previous",
+    "admin.tokens.page_next": "Next",
+    "admin.tokens.page_info": "Page {{page}} of {{total}}",
 
     // -- Admin Manage --
     "admin.manage.title": "Management",

@@ -206,3 +206,37 @@ pub struct AuditLogEntry {
     pub target_id: Option<i64>,
     pub detail: Option<String>,
 }
+
+/// Pagination metadata for token listings.
+#[derive(Debug, Clone)]
+pub struct TokenPage {
+    pub tokens: Vec<Token>,
+    pub total: i64,
+    pub page: i64,
+    pub per_page: i64,
+    /// Status filter applied: "current" (unused+active), "all", "unused", "active", "expired", "revoked"
+    pub status_filter: String,
+}
+
+impl TokenPage {
+    pub fn total_pages(&self) -> i64 {
+        if self.per_page <= 0 {
+            return 1;
+        }
+        (self.total + self.per_page - 1) / self.per_page
+    }
+
+    pub fn has_prev(&self) -> bool {
+        self.page > 1
+    }
+
+    pub fn has_next(&self) -> bool {
+        self.page < self.total_pages()
+    }
+
+    /// Build a query string for pagination links.
+    /// Example: `?token_status=unused&token_page=2`
+    pub fn query_string(&self, page: i64) -> String {
+        format!("?token_status={}&token_page={}", self.status_filter, page)
+    }
+}

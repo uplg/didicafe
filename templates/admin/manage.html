@@ -18,7 +18,7 @@
             <div class="stat-label" data-i18n="admin.dash.sessions"></div>
         </div>
         <div class="stat">
-            <div class="stat-value">{{ tokens.len() }}</div>
+            <div class="stat-value">{{ token_page.total }}</div>
             <div class="stat-label" data-i18n="admin.tokens.all"></div>
         </div>
         <div class="stat">
@@ -143,12 +143,22 @@
             <h2>
                 <svg class="section-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 4l4 4-4 4"/></svg>
                 <span data-i18n="admin.tokens.all"></span>
-                <span class="section-count">{{ tokens.len() }}</span>
+                <span class="section-count">{{ token_page.total }}</span>
             </h2>
 
         </summary>
         <div class="section-body">
-            {% if tokens.is_empty() %}
+            <!-- Status filter tabs -->
+            <div class="filter-tabs mb-md">
+                <a href="/admin/manage?token_status=current" class="filter-tab{% if token_page.status_filter == "current" %} active{% endif %}" data-i18n="admin.tokens.filter_current"></a>
+                <a href="/admin/manage?token_status=all" class="filter-tab{% if token_page.status_filter == "all" %} active{% endif %}" data-i18n="admin.tokens.filter_all"></a>
+                <a href="/admin/manage?token_status=unused" class="filter-tab{% if token_page.status_filter == "unused" %} active{% endif %}" data-i18n="status.unused"></a>
+                <a href="/admin/manage?token_status=active" class="filter-tab{% if token_page.status_filter == "active" %} active{% endif %}" data-i18n="status.active"></a>
+                <a href="/admin/manage?token_status=expired" class="filter-tab{% if token_page.status_filter == "expired" %} active{% endif %}" data-i18n="status.expired"></a>
+                <a href="/admin/manage?token_status=revoked" class="filter-tab{% if token_page.status_filter == "revoked" %} active{% endif %}" data-i18n="status.revoked"></a>
+            </div>
+
+            {% if token_page.tokens.is_empty() %}
             <p class="text-muted text-sm" data-i18n="admin.tokens.none"></p>
             {% else %}
             <div class="table-wrap">
@@ -163,7 +173,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for t in tokens %}
+                        {% for t in token_page.tokens %}
                         <tr>
                             <td>{% if let Some(n) = t.name %}{{ n }}{% else %}-{% endif %}</td>
                             <td>{{ t.plan_name }}</td>
@@ -189,6 +199,19 @@
                     </tbody>
                 </table>
             </div>
+
+            <!-- Pagination -->
+            {% if token_page.total_pages() > 1 %}
+            <nav class="pagination mt-md" aria-label="Token pagination">
+                {% if token_page.has_prev() %}
+                <a href="/admin/manage{{ token_page.query_string(token_page.page - 1) }}" class="btn btn--outline btn--sm" data-i18n="admin.tokens.page_prev"></a>
+                {% endif %}
+                <span class="pagination-info" data-i18n="admin.tokens.page_info" data-i18n-args="{&quot;page&quot;:&quot;{{ token_page.page }}&quot;,&quot;total&quot;:&quot;{{ token_page.total_pages() }}&quot;}"></span>
+                {% if token_page.has_next() %}
+                <a href="/admin/manage{{ token_page.query_string(token_page.page + 1) }}" class="btn btn--outline btn--sm" data-i18n="admin.tokens.page_next"></a>
+                {% endif %}
+            </nav>
+            {% endif %}
             {% endif %}
         </div>
     </details>
