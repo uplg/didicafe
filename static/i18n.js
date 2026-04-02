@@ -48,6 +48,7 @@ const TRANSLATIONS = {
     "admin.nav.plans": "Drafitra",
     "admin.nav.sessions": "Lozisialy",
     "admin.nav.audit": "Journal",
+    "admin.nav.settings": "Fanovana",
     "admin.nav.logout": "Hivoaka",
 
     // -- Admin Login --
@@ -70,6 +71,8 @@ const TRANSLATIONS = {
     "admin.dash.col_remaining": "Sisa",
     "admin.dash.disconnect": "Hajanona",
     "admin.dash.manage_tokens": "Fitantanana ny code",
+    "admin.dash.chart_title": "7 andro farany",
+    "admin.dash.chart_loading": "Miandry...",
 
     // -- Admin Tokens --
     "admin.tokens.title": "Fitantanana code",
@@ -131,6 +134,10 @@ const TRANSLATIONS = {
     "admin.audit.action_generate_tokens": "Code namboarina",
     "admin.audit.action_disconnect": "Fanapahana",
     "admin.audit.action_revoke": "Fanafoanana",
+    "admin.audit.action_login_failed": "Tsy nahomby fidirana",
+
+    // -- Admin Tokens (extra) --
+    "admin.tokens.copy": "Kopia",
 
     // -- Admin Manage --
     "admin.manage.title": "Fitantanana",
@@ -150,6 +157,23 @@ const TRANSLATIONS = {
     "admin.error.duration_positive": "Ny faharetan'ny dia tsy maintsy > 0.",
     "admin.error.duration_max": "Ny faharetan'ny dia tsy maintsy <= 1440 minitra (24h).",
     "admin.error.price_negative": "Ny vidiny dia tsy maintsy >= 0.",
+
+    // -- Admin Settings --
+    "admin.settings.title": "Fanovana",
+    "admin.settings.branding": "Marque",
+    "admin.settings.cafe_name": "Anaran'ny café",
+    "admin.settings.welcome_message": "Hafatra fandraisana",
+    "admin.settings.theme_color": "Loko voalohany",
+    "admin.settings.contact": "Fifandraisana",
+    "admin.settings.contact_name": "Anaran'ny tompon'andraikitra",
+    "admin.settings.contact_phone": "Laharana finday",
+    "admin.settings.contact_hours": "Ora fiasana",
+    "admin.settings.save": "Tehirizo",
+    "admin.settings.saved": "Voatahiry soa aman-tsara ny fanovana.",
+    "admin.error.welcome_too_long": "Ny hafatra dia tsy maintsy latsaky ny 500 litera.",
+    "admin.error.invalid_color": "Loko tsy mety (tokony #RRGGBB).",
+    "admin.error.phone_too_long": "Ny laharana finday dia lava loatra.",
+    "admin.error.hours_too_long": "Ny ora fiasana dia lava loatra.",
 
     // -- Generic Errors --
     "error.internal": "Nisy olana. Andramo indray azafady.",
@@ -243,6 +267,8 @@ const TRANSLATIONS = {
     "admin.nav.tokens": "Codes",
     "admin.nav.plans": "Forfaits",
     "admin.nav.sessions": "Sessions",
+    "admin.nav.audit": "Journal",
+    "admin.nav.settings": "Paramètres",
     "admin.nav.logout": "Déconnexion",
 
     // -- Admin Login --
@@ -265,6 +291,8 @@ const TRANSLATIONS = {
     "admin.dash.col_remaining": "Restant",
     "admin.dash.disconnect": "Déconnecter",
     "admin.dash.manage_tokens": "Gérer les codes",
+    "admin.dash.chart_title": "7 derniers jours",
+    "admin.dash.chart_loading": "Chargement...",
 
     // -- Admin Tokens --
     "admin.tokens.title": "Gestion des codes",
@@ -326,6 +354,10 @@ const TRANSLATIONS = {
     "admin.audit.action_generate_tokens": "Codes générés",
     "admin.audit.action_disconnect": "Déconnexion",
     "admin.audit.action_revoke": "Révocation",
+    "admin.audit.action_login_failed": "Échec connexion",
+
+    // -- Admin Tokens (extra) --
+    "admin.tokens.copy": "Copier",
 
     // -- Admin Manage --
     "admin.manage.title": "Gestion",
@@ -345,6 +377,23 @@ const TRANSLATIONS = {
     "admin.error.duration_positive": "La durée doit être supérieure à 0.",
     "admin.error.duration_max": "La durée ne doit pas dépasser 1440 minutes (24h).",
     "admin.error.price_negative": "Le prix doit être supérieur ou égal à 0.",
+
+    // -- Admin Settings --
+    "admin.settings.title": "Paramètres",
+    "admin.settings.branding": "Marque",
+    "admin.settings.cafe_name": "Nom du café",
+    "admin.settings.welcome_message": "Message d'accueil",
+    "admin.settings.theme_color": "Couleur principale",
+    "admin.settings.contact": "Contact",
+    "admin.settings.contact_name": "Nom du responsable",
+    "admin.settings.contact_phone": "Numéro de téléphone",
+    "admin.settings.contact_hours": "Heures d'ouverture",
+    "admin.settings.save": "Enregistrer",
+    "admin.settings.saved": "Paramètres enregistrés avec succès.",
+    "admin.error.welcome_too_long": "Le message d'accueil ne doit pas dépasser 500 caractères.",
+    "admin.error.invalid_color": "Couleur invalide (format attendu : #RRGGBB).",
+    "admin.error.phone_too_long": "Le numéro de téléphone est trop long.",
+    "admin.error.hours_too_long": "Les heures d'ouverture sont trop longues.",
 
     // -- Generic Errors --
     "error.internal": "Erreur interne. Veuillez réessayer.",
@@ -438,6 +487,8 @@ const TRANSLATIONS = {
     "admin.nav.tokens": "Tokens",
     "admin.nav.plans": "Plans",
     "admin.nav.sessions": "Sessions",
+    "admin.nav.audit": "Audit",
+    "admin.nav.settings": "Settings",
     "admin.nav.logout": "Log out",
 
     // -- Admin Login --
@@ -460,6 +511,8 @@ const TRANSLATIONS = {
     "admin.dash.col_remaining": "Remaining",
     "admin.dash.disconnect": "Disconnect",
     "admin.dash.manage_tokens": "Manage Tokens",
+    "admin.dash.chart_title": "Last 7 Days",
+    "admin.dash.chart_loading": "Loading...",
 
     // -- Admin Tokens --
     "admin.tokens.title": "Token Management",
@@ -521,6 +574,10 @@ const TRANSLATIONS = {
     "admin.audit.action_generate_tokens": "Tokens generated",
     "admin.audit.action_disconnect": "Disconnect",
     "admin.audit.action_revoke": "Revocation",
+    "admin.audit.action_login_failed": "Login failed",
+
+    // -- Admin Tokens (extra) --
+    "admin.tokens.copy": "Copy",
 
     // -- Admin Manage --
     "admin.manage.title": "Management",
@@ -540,6 +597,23 @@ const TRANSLATIONS = {
     "admin.error.duration_positive": "Duration must be greater than 0.",
     "admin.error.duration_max": "Duration must not exceed 1440 minutes (24h).",
     "admin.error.price_negative": "Price must be 0 or greater.",
+
+    // -- Admin Settings --
+    "admin.settings.title": "Settings",
+    "admin.settings.branding": "Branding",
+    "admin.settings.cafe_name": "Café name",
+    "admin.settings.welcome_message": "Welcome message",
+    "admin.settings.theme_color": "Primary color",
+    "admin.settings.contact": "Contact",
+    "admin.settings.contact_name": "Contact person",
+    "admin.settings.contact_phone": "Phone number",
+    "admin.settings.contact_hours": "Business hours",
+    "admin.settings.save": "Save",
+    "admin.settings.saved": "Settings saved successfully.",
+    "admin.error.welcome_too_long": "Welcome message must be 500 characters or less.",
+    "admin.error.invalid_color": "Invalid color (expected #RRGGBB format).",
+    "admin.error.phone_too_long": "Phone number is too long.",
+    "admin.error.hours_too_long": "Business hours is too long.",
 
     // -- Generic Errors --
     "error.internal": "Internal error. Please try again.",

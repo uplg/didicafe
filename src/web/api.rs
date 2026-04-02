@@ -74,6 +74,7 @@ pub fn routes() -> Router<Arc<AppState>> {
         .route("/api/sessions", get(list_sessions))
         .route("/api/sessions/{id}", delete(disconnect_session))
         .route("/api/stats", get(get_stats))
+        .route("/api/stats/weekly", get(get_weekly_stats))
 }
 
 // -- Handlers --
@@ -241,4 +242,13 @@ async fn get_stats(
     let stats = state.db.get_daily_stats().await
         .map_err(AppError::Internal)?;
     Ok(ApiResponse::success(stats))
+}
+
+async fn get_weekly_stats(
+    State(state): State<Arc<AppState>>,
+    _admin: AdminSession,
+) -> Result<impl IntoResponse, AppError> {
+    let days = state.db.get_weekly_stats().await
+        .map_err(AppError::Internal)?;
+    Ok(ApiResponse::success(serde_json::json!({ "days": days })))
 }

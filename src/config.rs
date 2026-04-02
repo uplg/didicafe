@@ -176,6 +176,67 @@ fn default_theme_color() -> String {
     "#b45309".to_string()
 }
 
+impl PortalConfig {
+    /// Generate a CSS `<style>` block that overrides the default primary color
+    /// custom properties based on `theme_color`.
+    ///
+    /// Produces `:root { --c-primary: ...; --c-primary-hover: ...; --c-primary-light: ...; --c-primary-50: ...; }`
+    /// This is injected into `base.html` / `admin/base.html` so the entire
+    /// palette adapts to the configured brand color.
+    pub fn generate_theme_css(&self) -> String {
+        let hex = &self.theme_color;
+        let (r, g, b) = parse_hex_rgb(hex);
+
+        // Primary = the configured color
+        let primary = format!("#{r:02x}{g:02x}{b:02x}");
+        // Hover = 15% darker
+        let hover = darken(r, g, b, 0.15);
+        // Light = 85% lighter (mixed towards white)
+        let light = lighten(r, g, b, 0.85);
+        // 50 = 93% lighter
+        let p50 = lighten(r, g, b, 0.93);
+
+        format!(
+            ":root {{ --c-primary: {primary}; --c-primary-hover: {hover}; --c-primary-light: {light}; --c-primary-50: {p50}; }}"
+        )
+    }
+}
+
+/// Parse a hex color (#RGB or #RRGGBB) into (r, g, b) components.
+fn parse_hex_rgb(hex: &str) -> (u8, u8, u8) {
+    let hex = hex.strip_prefix('#').unwrap_or(hex);
+    if hex.len() == 3 {
+        let r = u8::from_str_radix(&hex[0..1], 16).unwrap_or(0);
+        let g = u8::from_str_radix(&hex[1..2], 16).unwrap_or(0);
+        let b = u8::from_str_radix(&hex[2..3], 16).unwrap_or(0);
+        (r * 17, g * 17, b * 17)
+    } else if hex.len() == 6 {
+        let r = u8::from_str_radix(&hex[0..2], 16).unwrap_or(0);
+        let g = u8::from_str_radix(&hex[2..4], 16).unwrap_or(0);
+        let b = u8::from_str_radix(&hex[4..6], 16).unwrap_or(0);
+        (r, g, b)
+    } else {
+        (180, 83, 9) // fallback to default amber
+    }
+}
+
+/// Darken an RGB color by a factor (0.0 = unchanged, 1.0 = black).
+fn darken(r: u8, g: u8, b: u8, factor: f64) -> String {
+    let f = 1.0 - factor;
+    let r = (r as f64 * f).round() as u8;
+    let g = (g as f64 * f).round() as u8;
+    let b = (b as f64 * f).round() as u8;
+    format!("#{r:02x}{g:02x}{b:02x}")
+}
+
+/// Lighten an RGB color by mixing towards white (0.0 = unchanged, 1.0 = white).
+fn lighten(r: u8, g: u8, b: u8, factor: f64) -> String {
+    let r = (r as f64 + (255.0 - r as f64) * factor).round() as u8;
+    let g = (g as f64 + (255.0 - g as f64) * factor).round() as u8;
+    let b = (b as f64 + (255.0 - b as f64) * factor).round() as u8;
+    format!("#{r:02x}{g:02x}{b:02x}")
+}
+
 impl Default for PortalConfig {
     fn default() -> Self {
         Self {
@@ -223,7 +284,7 @@ impl Default for TlsConfig {
 }
 
 /// Validate a hex color string (#RGB or #RRGGBB).
-fn is_valid_hex_color(s: &str) -> bool {
+pub fn is_valid_hex_color(s: &str) -> bool {
     let s = s.strip_prefix('#').unwrap_or("");
     (s.len() == 3 || s.len() == 6) && s.chars().all(|c| c.is_ascii_hexdigit())
 }
@@ -725,5 +786,45 @@ mod tests {
         cfg.portal.admin_domain = "admin.cafe.local".to_string();
         cfg.portal.domain = "cafe.local".to_string();
         assert!(cfg.validate().is_ok());
+    }
+
+    #[test]
+    fn test_parse_hex_rgb_6digit() {
+        let (r, g, b) = super::parse_hex_rgb("#b45309");
+        assert_eq!((r, g, b), (180, 83, 9));
+    }
+
+    #[test]
+    fn test_parse_hex_rgb_3digit() {
+        let (r, g, b) = super::parse_hex_rgb("#f80");
+        assert_eq!((r, g, b), (0xff, 0x88, 0x00));
+    }
+
+    #[test]
+    fn test_generate_theme_css_contains_properties() {
+        let cfg = test_config();
+        let css = cfg.portal.generate_theme_css();
+        assert!(
+            css.starts_with(":root {"),
+            "expected :root block, got: {css}"
+        );
+        assert!(css.contains("--c-primary:"));
+        assert!(css.contains("--c-primary-hover:"));
+        assert!(css.contains("--c-primary-light:"));
+        assert!(css.contains("--c-primary-50:"));
+    }
+
+    #[test]
+    fn test_darken_produces_darker_color() {
+        let dark = super::darken(180, 83, 9, 0.15);
+        // 180 * 0.85 = 153, 83 * 0.85 ≈ 71, 9 * 0.85 ≈ 8
+        assert_eq!(dark, "#994708");
+    }
+
+    #[test]
+    fn test_lighten_produces_lighter_color() {
+        let light = super::lighten(180, 83, 9, 0.85);
+        // 180 + (255-180)*0.85 ≈ 244, 83 + (255-83)*0.85 ≈ 229, 9 + (255-9)*0.85 ≈ 218
+        assert_eq!(light, "#f4e5da");
     }
 }

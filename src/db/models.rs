@@ -149,6 +149,8 @@ pub struct Session {
     pub status: SessionStatus,
     pub token_code: Option<String>,
     pub token_name: Option<String>,
+    /// Plan name associated with this session's token (joined from plan table).
+    pub plan_name: Option<String>,
 }
 
 impl Session {
@@ -158,6 +160,11 @@ impl Session {
 
     pub fn token_name(&self) -> String {
         self.token_name.clone().unwrap_or_default()
+    }
+
+    /// Returns the plan name for display, or empty string if unavailable.
+    pub fn plan_name(&self) -> String {
+        self.plan_name.clone().unwrap_or_default()
     }
 
     /// Returns remaining seconds for this session, or 0 if expired.
@@ -177,6 +184,15 @@ impl Session {
 pub struct DailyStats {
     pub tokens_sold: i64,
     pub active_sessions: i64,
+    pub revenue_ariary: i64,
+}
+
+/// Per-day stats for the weekly rolling chart.
+#[derive(Debug, Clone, Serialize)]
+pub struct DayStats {
+    /// Date in "YYYY-MM-DD" format.
+    pub date: String,
+    pub tokens_sold: i64,
     pub revenue_ariary: i64,
 }
 

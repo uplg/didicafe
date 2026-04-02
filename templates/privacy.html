@@ -1,13 +1,14 @@
 {% extends "base.html" %}
 
-{% block title %}DidiCafe - Fiainana manokana{% endblock %}
+{% block title %}{{ cafe_name }} — Fiainana manokana{% endblock %}
+{% block theme_css %}{{ theme_css }}{% endblock %}
 
 {% block body %}
 <main class="container" role="main">
     <div class="card">
         <h1 data-i18n="privacy.title">Fiainana manokana</h1>
 
-        <div class="text-sm">
+        <div class="privacy-content">
             <p data-i18n="privacy.intro">
                 DidiCafe dia manangona angon-drakitra ilaina fotsiny ho an'ny fampiasana WiFi.
             </p>

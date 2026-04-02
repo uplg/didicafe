@@ -1,0 +1,64 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{{ cafe_name }} - Paramètres{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h1 data-i18n="admin.settings.title">Fanovana</h1>
+
+    {% if let Some(msg) = message %}
+    <div class="alert alert--success mt-md" data-i18n="{{ msg }}">{{ msg }}</div>
+    {% endif %}
+
+    <form method="post" action="/admin/settings" class="mt-md">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+        <fieldset class="settings-fieldset">
+            <legend data-i18n="admin.settings.branding">Marque</legend>
+
+            <div class="form-group">
+                <label for="cafe_name" data-i18n="admin.settings.cafe_name">Anaran'ny café</label>
+                <input type="text" id="cafe_name" name="cafe_name" value="{{ current.cafe_name }}" maxlength="100" required>
+            </div>
+
+            <div class="form-group">
+                <label for="welcome_message" data-i18n="admin.settings.welcome_message">Hafatra fandraisana (facultatif)</label>
+                <input type="text" id="welcome_message" name="welcome_message" value="{{ current.welcome_message }}" maxlength="500">
+            </div>
+
+            <div class="form-group">
+                <label for="theme_color" data-i18n="admin.settings.theme_color">Loko voalohany</label>
+                <div class="color-input-wrap">
+                    <input type="color" id="theme_color_picker" value="{{ current.theme_color }}" aria-hidden="true">
+                    <input type="text" id="theme_color" name="theme_color" value="{{ current.theme_color }}" maxlength="7" pattern="#[0-9a-fA-F]{6}" placeholder="#b45309" class="color-text-input">
+                </div>
+            </div>
+        </fieldset>
+
+        <fieldset class="settings-fieldset">
+            <legend data-i18n="admin.settings.contact">Fifandraisana</legend>
+
+            <div class="form-group">
+                <label for="contact_name" data-i18n="admin.settings.contact_name">Anaran'ny tompon'andraikitra</label>
+                <input type="text" id="contact_name" name="contact_name" value="{{ current.contact_name }}" maxlength="100">
+            </div>
+
+            <div class="form-group">
+                <label for="contact_phone" data-i18n="admin.settings.contact_phone">Laharana finday</label>
+                <input type="text" id="contact_phone" name="contact_phone" value="{{ current.contact_phone }}" maxlength="30" placeholder="+261 34 XX XXX XX">
+            </div>
+
+            <div class="form-group">
+                <label for="contact_hours" data-i18n="admin.settings.contact_hours">Ora fiasana</label>
+                <input type="text" id="contact_hours" name="contact_hours" value="{{ current.contact_hours }}" maxlength="100" placeholder="Lun-Sam 7h-20h">
+            </div>
+        </fieldset>
+
+        <button type="submit" class="btn btn--primary mt-md" data-i18n="admin.settings.save">Tehirizo</button>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/settings.js"></script>
+{% endblock %}

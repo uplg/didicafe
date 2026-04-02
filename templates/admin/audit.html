@@ -1,6 +1,6 @@
 {% extends "admin/base.html" %}
 
-{% block title %}DidiCafe Admin - Journal{% endblock %}
+{% block title %}{{ cafe_name }} Admin - Journal{% endblock %}
 
 {% block content %}
 <div class="card">
@@ -28,10 +28,12 @@
                     <td>
                         {% if e.action == "login" %}
                         <span class="badge badge--active" data-i18n="admin.audit.action_login">Connexion</span>
+                        {% else if e.action == "login_failed" %}
+                        <span class="badge badge--expired" data-i18n="admin.audit.action_login_failed">Échec connexion</span>
                         {% else if e.action == "create_plan" %}
                         <span class="badge badge--unused" data-i18n="admin.audit.action_create_plan">Forfait créé</span>
                         {% else if e.action == "generate_tokens" %}
-                        <span class="badge badge--expired" data-i18n="admin.audit.action_generate_tokens">Codes générés</span>
+                        <span class="badge badge--unused" data-i18n="admin.audit.action_generate_tokens">Codes générés</span>
                         {% else if e.action == "disconnect_session" %}
                         <span class="badge badge--expired" data-i18n="admin.audit.action_disconnect">Déconnexion</span>
                         {% else if e.action == "revoke_token" %}

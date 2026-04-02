@@ -33,23 +33,23 @@ const TOKEN_LIST_BY_STATUS: &str =
 
 const SESSION_ACTIVE: &str =
     "SELECT s.id, s.token_id, s.mac_address, s.ip_address, s.started_at, s.expires_at, s.status, \
-            t.code as token_code, t.name as token_name \
-     FROM session s JOIN token t ON s.token_id = t.id WHERE s.status = 'active'";
+            t.code as token_code, t.name as token_name, p.name as plan_name \
+     FROM session s JOIN token t ON s.token_id = t.id JOIN plan p ON t.plan_id = p.id WHERE s.status = 'active'";
 
 const SESSION_BY_MAC: &str =
     "SELECT s.id, s.token_id, s.mac_address, s.ip_address, s.started_at, s.expires_at, s.status, \
-            t.code as token_code, t.name as token_name \
-     FROM session s JOIN token t ON s.token_id = t.id WHERE s.mac_address = ?1 AND s.status = 'active'";
+            t.code as token_code, t.name as token_name, p.name as plan_name \
+     FROM session s JOIN token t ON s.token_id = t.id JOIN plan p ON t.plan_id = p.id WHERE s.mac_address = ?1 AND s.status = 'active'";
 
 const SESSION_BY_ID: &str =
     "SELECT s.id, s.token_id, s.mac_address, s.ip_address, s.started_at, s.expires_at, s.status, \
-            t.code as token_code, t.name as token_name \
-     FROM session s JOIN token t ON s.token_id = t.id WHERE s.id = ?1";
+            t.code as token_code, t.name as token_name, p.name as plan_name \
+     FROM session s JOIN token t ON s.token_id = t.id JOIN plan p ON t.plan_id = p.id WHERE s.id = ?1";
 
 const SESSION_BY_TOKEN: &str =
     "SELECT s.id, s.token_id, s.mac_address, s.ip_address, s.started_at, s.expires_at, s.status, \
-            t.code as token_code, t.name as token_name \
-     FROM session s JOIN token t ON s.token_id = t.id WHERE s.token_id = ?1 AND s.status = 'active'";
+            t.code as token_code, t.name as token_name, p.name as plan_name \
+     FROM session s JOIN token t ON s.token_id = t.id JOIN plan p ON t.plan_id = p.id WHERE s.token_id = ?1 AND s.status = 'active'";
 
 /// Async SQLite database wrapper using sqlx.
 ///
@@ -103,6 +103,10 @@ impl Database {
             .execute(&self.pool)
             .await
             .context("failed to run migration 003")?;
+        sqlx::query(include_str!("../../migrations/004_settings.sql"))
+            .execute(&self.pool)
+            .await
+            .context("failed to run migration 004")?;
         Ok(())
     }
 
@@ -397,6 +401,43 @@ impl Database {
         Ok(result.rows_affected())
     }
 
+    // -- Settings (key-value store) --
+
+    /// Get a single setting by key. Returns `None` if not found.
+    pub async fn get_setting(&self, key: &str) -> Result<Option<String>> {
+        let row: Option<(String,)> = sqlx::query_as(
+            "SELECT value FROM setting WHERE key = ?1",
+        )
+        .bind(key)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.map(|(v,)| v))
+    }
+
+    /// Set a setting (insert or update). Empty values are still stored;
+    /// use `delete_setting` to remove a key entirely.
+    pub async fn set_setting(&self, key: &str, value: &str) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO setting (key, value) VALUES (?1, ?2) \
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        )
+        .bind(key)
+        .bind(value)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Get all settings as key-value pairs.
+    pub async fn get_all_settings(&self) -> Result<Vec<(String, String)>> {
+        let rows: Vec<(String, String)> = sqlx::query_as(
+            "SELECT key, value FROM setting ORDER BY key",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows)
+    }
+
     // -- Stats --
 
     pub async fn get_daily_stats(&self) -> Result<DailyStats> {
@@ -425,6 +466,48 @@ impl Database {
             active_sessions,
             revenue_ariary: revenue,
         })
+    }
+
+    /// Returns per-day stats for the last 7 days (rolling window).
+    ///
+    /// Each entry contains the date, tokens sold, and revenue for that day.
+    /// Days with no activity are included with zeroes.
+    pub async fn get_weekly_stats(&self) -> Result<Vec<DayStats>> {
+        // Generate the 7 date strings in application code, then query each.
+        // SQLite doesn't have generate_series natively, so we use a CTE with
+        // a recursive range. This runs as a single query.
+        let rows: Vec<(String, i64, i64)> = sqlx::query_as(
+            "WITH RECURSIVE dates(d) AS ( \
+                 SELECT date('now', '-6 days') \
+                 UNION ALL \
+                 SELECT date(d, '+1 day') FROM dates WHERE d < date('now') \
+             ) \
+             SELECT \
+                 dates.d, \
+                 COALESCE(( \
+                     SELECT COUNT(*) FROM token \
+                     WHERE date(redeemed_at) = dates.d \
+                       AND status IN ('active', 'expired') \
+                 ), 0), \
+                 COALESCE(( \
+                     SELECT SUM(p.price_ariary) FROM token t \
+                     JOIN plan p ON t.plan_id = p.id \
+                     WHERE date(t.redeemed_at) = dates.d \
+                       AND t.status IN ('active', 'expired') \
+                 ), 0) \
+             FROM dates ORDER BY dates.d",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|(date, tokens_sold, revenue_ariary)| DayStats {
+                date,
+                tokens_sold,
+                revenue_ariary,
+            })
+            .collect())
     }
 }
 
@@ -622,6 +705,7 @@ mod tests {
             status: SessionStatus::Active,
             token_code: None,
             token_name: None,
+            plan_name: None,
         };
         assert!(session.remaining_seconds() > 0);
     }
@@ -634,6 +718,7 @@ mod tests {
             mac_address: "AA:BB:CC:DD:EE:FF".to_string(),
             token_code: None,
             token_name: None,
+            plan_name: None,
             ip_address: "10.0.0.1".to_string(),
             started_at: "2020-01-01 00:00:00".to_string(),
             expires_at: "2020-01-01 01:00:00".to_string(),
@@ -654,6 +739,7 @@ mod tests {
             status: SessionStatus::Active,
             token_code: None,
             token_name: None,
+            plan_name: None,
         };
         assert_eq!(session.remaining_seconds(), 0);
     }
@@ -715,5 +801,85 @@ mod tests {
         let db = test_db().await;
         let active = db.list_active_plans().await.unwrap();
         assert!(active.is_empty());
+    }
+
+    // -- Settings --
+
+    #[tokio::test]
+    async fn test_get_setting_missing() {
+        let db = test_db().await;
+        let val = db.get_setting("nonexistent").await.unwrap();
+        assert!(val.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_set_and_get_setting() {
+        let db = test_db().await;
+        db.set_setting("theme_color", "#ff0000").await.unwrap();
+        let val = db.get_setting("theme_color").await.unwrap();
+        assert_eq!(val.as_deref(), Some("#ff0000"));
+    }
+
+    #[tokio::test]
+    async fn test_set_setting_upsert() {
+        let db = test_db().await;
+        db.set_setting("cafe_name", "OldName").await.unwrap();
+        db.set_setting("cafe_name", "NewName").await.unwrap();
+        let val = db.get_setting("cafe_name").await.unwrap();
+        assert_eq!(val.as_deref(), Some("NewName"));
+    }
+
+    #[tokio::test]
+    async fn test_get_all_settings() {
+        let db = test_db().await;
+        db.set_setting("b_key", "beta").await.unwrap();
+        db.set_setting("a_key", "alpha").await.unwrap();
+        let all = db.get_all_settings().await.unwrap();
+        assert_eq!(all.len(), 2);
+        // Sorted by key
+        assert_eq!(all[0].0, "a_key");
+        assert_eq!(all[1].0, "b_key");
+    }
+
+    // -- Weekly stats --
+
+    #[tokio::test]
+    async fn test_weekly_stats_empty() {
+        let db = test_db().await;
+        let days = db.get_weekly_stats().await.unwrap();
+        assert_eq!(days.len(), 7);
+        // All days should have zero tokens and revenue
+        for day in &days {
+            assert_eq!(day.tokens_sold, 0);
+            assert_eq!(day.revenue_ariary, 0);
+        }
+        // Dates should be sorted ascending
+        for i in 1..days.len() {
+            assert!(days[i].date > days[i - 1].date);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_weekly_stats_with_data() {
+        let db = test_db().await;
+
+        // Create a plan and redeem a token today
+        let plan_id = db.create_plan("1h WiFi", 60, 1000).await.unwrap();
+        let token_id = db.create_token("TEST-CODE-0001", Some("test"), plan_id).await.unwrap();
+        db.redeem_token(token_id, "2099-12-31 23:59:59").await.unwrap();
+
+        let days = db.get_weekly_stats().await.unwrap();
+        assert_eq!(days.len(), 7);
+
+        // Last day (today) should have 1 token sold and 1000 Ar revenue
+        let today = &days[6];
+        assert_eq!(today.tokens_sold, 1);
+        assert_eq!(today.revenue_ariary, 1000);
+
+        // All other days should be zero
+        for day in &days[..6] {
+            assert_eq!(day.tokens_sold, 0);
+            assert_eq!(day.revenue_ariary, 0);
+        }
     }
 }

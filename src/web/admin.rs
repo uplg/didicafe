@@ -13,6 +13,7 @@ use serde::Deserialize;
 use subtle::ConstantTimeEq;
 
 use crate::AppState;
+use crate::config::PortalConfig;
 use crate::services::rate_limit::RateLimitResult;
 use super::error::{AppError, render};
 use super::extractors::{AdminSession, CsrfToken, extract_cookie, ADMIN_COOKIE_NAME};
@@ -80,6 +81,8 @@ fn clear_session_cookie(tls_enabled: bool) -> String {
 struct LoginTemplate {
     error: Option<String>,
     csrf_token: String,
+    cafe_name: String,
+    theme_css: String,
 }
 
 #[derive(Template)]
@@ -88,6 +91,9 @@ struct DashboardTemplate {
     stats: crate::db::DailyStats,
     active_sessions: Vec<crate::db::Session>,
     csrf_token: String,
+    cafe_name: String,
+    current_page: String,
+    theme_css: String,
 }
 
 #[derive(Template)]
@@ -98,12 +104,29 @@ struct ManageTemplate {
     sessions: Vec<crate::db::Session>,
     message: Option<I18nMessage>,
     csrf_token: String,
+    cafe_name: String,
+    current_page: String,
+    theme_css: String,
 }
 
 #[derive(Template)]
 #[template(path = "admin/audit.html")]
 struct AuditTemplate {
     entries: Vec<crate::db::AuditLogEntry>,
+    cafe_name: String,
+    current_page: String,
+    theme_css: String,
+}
+
+#[derive(Template)]
+#[template(path = "admin/settings.html")]
+struct SettingsTemplate {
+    current: PortalConfig,
+    message: Option<String>,
+    csrf_token: String,
+    cafe_name: String,
+    current_page: String,
+    theme_css: String,
 }
 
 // -- Forms --
@@ -126,7 +149,58 @@ pub struct ManageForm {
     csrf_token: String,
 }
 
+#[derive(Deserialize)]
+pub struct SettingsForm {
+    cafe_name: String,
+    welcome_message: String,
+    theme_color: String,
+    contact_name: String,
+    contact_phone: String,
+    contact_hours: String,
+    csrf_token: String,
+}
+
 // -- Routes --
+
+/// Helper: get common admin template fields from state.
+/// Reads settings from DB, falling back to TOML config values.
+struct AdminCtx {
+    cafe_name: String,
+    theme_css: String,
+}
+
+async fn admin_ctx(state: &Arc<AppState>) -> AdminCtx {
+    let portal = portal_config_from_db(state).await;
+    AdminCtx {
+        cafe_name: portal.cafe_name.clone(),
+        theme_css: portal.generate_theme_css(),
+    }
+}
+
+/// Build a `PortalConfig` by overlaying DB settings on top of TOML defaults.
+/// Each setting key maps 1:1 to a `PortalConfig` field.
+///
+/// Used by both admin and portal handlers to get the current effective config.
+pub(super) async fn portal_config_from_db(state: &Arc<AppState>) -> PortalConfig {
+    let base = &state.config.portal;
+    let settings = state.db.get_all_settings().await.unwrap_or_default();
+
+    let mut cfg = base.clone();
+    for (key, value) in &settings {
+        match key.as_str() {
+            "cafe_name" if !value.is_empty() => cfg.cafe_name = value.clone(),
+            "welcome_message" => cfg.welcome_message = value.clone(),
+            "theme_color" if crate::config::is_valid_hex_color(value) => {
+                cfg.theme_color = value.clone();
+            }
+            "contact_name" => cfg.contact_name = value.clone(),
+            "contact_phone" => cfg.contact_phone = value.clone(),
+            "contact_hours" => cfg.contact_hours = value.clone(),
+            _ => {}
+        }
+    }
+    cfg
+}
 
 pub fn routes() -> Router<Arc<AppState>> {
     Router::new()
@@ -136,6 +210,7 @@ pub fn routes() -> Router<Arc<AppState>> {
         .route("/admin/logout", post(logout))
         .route("/admin/manage", get(manage_page).post(manage_submit))
         .route("/admin/audit", get(audit_page))
+        .route("/admin/settings", get(settings_page).post(settings_submit))
 }
 
 /// GET /admin — redirect to login if not authenticated
@@ -161,7 +236,8 @@ async fn login_page(
 ) -> Result<impl IntoResponse, AppError> {
     let ip_key = addr.ip().to_string();
     let csrf_token = state.login_csrf_store.generate(&ip_key);
-    render(&LoginTemplate { error: None, csrf_token })
+    let ctx = admin_ctx(&state).await;
+    render(&LoginTemplate { error: None, csrf_token, cafe_name: ctx.cafe_name, theme_css: ctx.theme_css })
 }
 
 /// POST /admin/login — validate credentials, create session, set cookie
@@ -175,14 +251,22 @@ async fn login_submit(
     Form(form): Form<LoginForm>,
 ) -> Result<impl IntoResponse, AppError> {
     let ip_key = addr.ip().to_string();
+    let ctx = admin_ctx(&state).await;
+
+    // Helper closure: build login error template
+    let login_err = |error: &str, csrf: String| -> LoginTemplate {
+        LoginTemplate {
+            error: Some(error.to_string()),
+            csrf_token: csrf,
+            cafe_name: ctx.cafe_name.clone(),
+            theme_css: ctx.theme_css.clone(),
+        }
+    };
 
     // CSRF validation: Synchronizer Token Pattern (server-side, one-time use)
     if !state.login_csrf_store.validate(&ip_key, &form.csrf_token) {
         let csrf_token = state.login_csrf_store.generate(&ip_key);
-        let body = render(&LoginTemplate {
-            error: Some("admin.login.error.csrf".to_string()),
-            csrf_token,
-        })?;
+        let body = render(&login_err("admin.login.error.csrf", csrf_token))?;
         return Ok(body.into_response());
     }
 
@@ -190,10 +274,7 @@ async fn login_submit(
     match state.admin_rate_limiter.check_and_record(addr.ip()) {
         RateLimitResult::Banned { retry_after_seconds } => {
             let csrf_token = state.login_csrf_store.generate(&ip_key);
-            let body = render(&LoginTemplate {
-                error: Some("admin.login.error.rate_limit".to_string()),
-                csrf_token,
-            })?;
+            let body = render(&login_err("admin.login.error.rate_limit", csrf_token))?;
             return Ok((
                 StatusCode::TOO_MANY_REQUESTS,
                 AppendHeaders([
@@ -204,10 +285,7 @@ async fn login_submit(
         }
         RateLimitResult::Throttled => {
             let csrf_token = state.login_csrf_store.generate(&ip_key);
-            let body = render(&LoginTemplate {
-                error: Some("admin.login.error.rate_limit".to_string()),
-                csrf_token,
-            })?;
+            let body = render(&login_err("admin.login.error.rate_limit", csrf_token))?;
             return Ok((StatusCode::TOO_MANY_REQUESTS, body).into_response());
         }
         RateLimitResult::Allowed => {}
@@ -216,10 +294,7 @@ async fn login_submit(
     // Input length limits: prevent Argon2 DoS with oversized passwords
     if form.username.len() > MAX_USERNAME_LEN || form.password.len() > MAX_PASSWORD_LEN {
         let csrf_token = state.login_csrf_store.generate(&ip_key);
-        let body = render(&LoginTemplate {
-            error: Some("admin.login.error".to_string()),
-            csrf_token,
-        })?;
+        let body = render(&login_err("admin.login.error", csrf_token))?;
         return Ok(body.into_response());
     }
 
@@ -248,10 +323,7 @@ async fn login_submit(
         let logged_user = &form.username[..form.username.len().min(MAX_USERNAME_LEN)];
         state.db.audit_log(logged_user, "login_failed", None, None, None).await.ok();
         let csrf_token = state.login_csrf_store.generate(&ip_key);
-        let body = render(&LoginTemplate {
-            error: Some("admin.login.error".to_string()),
-            csrf_token,
-        })?;
+        let body = render(&login_err("admin.login.error", csrf_token))?;
         Ok(body.into_response())
     }
 }
@@ -284,11 +356,15 @@ async fn dashboard(
         .map_err(AppError::Internal)?;
     let active_sessions = state.db.get_active_sessions().await
         .map_err(AppError::Internal)?;
+    let ctx = admin_ctx(&state).await;
 
     render(&DashboardTemplate {
         stats,
         active_sessions,
         csrf_token: csrf.0,
+        cafe_name: ctx.cafe_name,
+        current_page: "dashboard".to_string(),
+        theme_css: ctx.theme_css,
     })
 }
 
@@ -299,12 +375,16 @@ async fn manage_page(
     csrf: CsrfToken,
 ) -> Result<impl IntoResponse, AppError> {
     let (tokens, plans, sessions) = load_manage_data(&state).await?;
+    let ctx = admin_ctx(&state).await;
     render(&ManageTemplate {
         tokens,
         plans,
         sessions,
         message: None,
         csrf_token: csrf.0,
+        cafe_name: ctx.cafe_name,
+        current_page: "manage".to_string(),
+        theme_css: ctx.theme_css,
     })
 }
 
@@ -378,12 +458,16 @@ async fn manage_submit(
     };
 
     let (tokens, plans, sessions) = load_manage_data(&state).await?;
+    let ctx = admin_ctx(&state).await;
     render(&ManageTemplate {
         tokens,
         plans,
         sessions,
         message,
         csrf_token: csrf.0,
+        cafe_name: ctx.cafe_name,
+        current_page: "manage".to_string(),
+        theme_css: ctx.theme_css,
     })
 }
 
@@ -426,7 +510,111 @@ async fn audit_page(
 ) -> Result<impl IntoResponse, AppError> {
     let entries = state.db.get_audit_log(200).await
         .map_err(AppError::Internal)?;
-    render(&AuditTemplate { entries })
+    let ctx = admin_ctx(&state).await;
+    render(&AuditTemplate {
+        entries,
+        cafe_name: ctx.cafe_name,
+        current_page: "audit".to_string(),
+        theme_css: ctx.theme_css,
+    })
+}
+
+/// GET /admin/settings — theme and contact settings (requires auth)
+async fn settings_page(
+    State(state): State<Arc<AppState>>,
+    _admin: AdminSession,
+    csrf: CsrfToken,
+) -> Result<impl IntoResponse, AppError> {
+    let current = portal_config_from_db(&state).await;
+    let ctx = AdminCtx {
+        cafe_name: current.cafe_name.clone(),
+        theme_css: current.generate_theme_css(),
+    };
+    render(&SettingsTemplate {
+        current,
+        message: None,
+        csrf_token: csrf.0,
+        cafe_name: ctx.cafe_name,
+        current_page: "settings".to_string(),
+        theme_css: ctx.theme_css,
+    })
+}
+
+/// POST /admin/settings — save branding and contact settings (requires auth)
+async fn settings_submit(
+    State(state): State<Arc<AppState>>,
+    _admin: AdminSession,
+    csrf: CsrfToken,
+    Form(form): Form<SettingsForm>,
+) -> Result<impl IntoResponse, AppError> {
+    // CSRF validation (constant-time comparison)
+    let csrf_ok: bool = form.csrf_token.as_bytes()
+        .ct_eq(csrf.0.as_bytes())
+        .into();
+    if !csrf_ok {
+        return Err(AppError::BadRequest("admin.error.csrf".to_string()));
+    }
+
+    // Validate inputs
+    let cafe_name = form.cafe_name.trim();
+    if cafe_name.is_empty() {
+        return Err(AppError::BadRequest("admin.error.name_empty".to_string()));
+    }
+    if cafe_name.len() > 100 {
+        return Err(AppError::BadRequest("admin.error.name_too_long".to_string()));
+    }
+    let welcome_message = form.welcome_message.trim();
+    if welcome_message.len() > 500 {
+        return Err(AppError::BadRequest("admin.error.welcome_too_long".to_string()));
+    }
+    let theme_color = form.theme_color.trim();
+    if !crate::config::is_valid_hex_color(theme_color) {
+        return Err(AppError::BadRequest("admin.error.invalid_color".to_string()));
+    }
+    let contact_name = form.contact_name.trim();
+    if contact_name.len() > 100 {
+        return Err(AppError::BadRequest("admin.error.name_too_long".to_string()));
+    }
+    let contact_phone = form.contact_phone.trim();
+    if contact_phone.len() > 30 {
+        return Err(AppError::BadRequest("admin.error.phone_too_long".to_string()));
+    }
+    let contact_hours = form.contact_hours.trim();
+    if contact_hours.len() > 100 {
+        return Err(AppError::BadRequest("admin.error.hours_too_long".to_string()));
+    }
+
+    // Persist all settings to DB
+    state.db.set_setting("cafe_name", cafe_name).await.map_err(AppError::Internal)?;
+    state.db.set_setting("welcome_message", welcome_message).await.map_err(AppError::Internal)?;
+    state.db.set_setting("theme_color", theme_color).await.map_err(AppError::Internal)?;
+    state.db.set_setting("contact_name", contact_name).await.map_err(AppError::Internal)?;
+    state.db.set_setting("contact_phone", contact_phone).await.map_err(AppError::Internal)?;
+    state.db.set_setting("contact_hours", contact_hours).await.map_err(AppError::Internal)?;
+
+    // Audit log
+    state.db.audit_log(
+        &state.config.admin.username,
+        "update_settings",
+        Some("setting"),
+        None,
+        Some(&format!("cafe_name={cafe_name}, theme_color={theme_color}")),
+    ).await.ok();
+
+    // Re-read from DB and render the page with success message
+    let current = portal_config_from_db(&state).await;
+    let ctx = AdminCtx {
+        cafe_name: current.cafe_name.clone(),
+        theme_css: current.generate_theme_css(),
+    };
+    render(&SettingsTemplate {
+        current,
+        message: Some("admin.settings.saved".to_string()),
+        csrf_token: csrf.0,
+        cafe_name: ctx.cafe_name,
+        current_page: "settings".to_string(),
+        theme_css: ctx.theme_css,
+    })
 }
 
 #[cfg(test)]

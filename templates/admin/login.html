@@ -1,11 +1,15 @@
 {% extends "../base.html" %}
 
-{% block title %}DidiCafe Admin{% endblock %}
+{% block title %}{{ cafe_name }} Admin{% endblock %}
+{% block theme_css %}{{ theme_css }}{% endblock %}
 
 {% block body %}
 <main class="container" role="main">
     <div class="card">
-        {% include "../partials/brand.html" %}
+        <div class="brand">
+            <div class="brand-icon" aria-hidden="true">{{ cafe_name.chars().next().unwrap_or('D') }}</div>
+            <h1>{{ cafe_name }} <span class="text-muted text-sm">Admin</span></h1>
+        </div>
         {% include "../partials/lang_switcher.html" %}
 
         {% if let Some(err) = error %}

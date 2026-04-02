@@ -4,20 +4,23 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
-    <title>{% block title %}DidiCafe Admin{% endblock %}</title>
+    <meta name="color-scheme" content="light dark">
+    <title>{% block title %}{{ cafe_name }} Admin{% endblock %}</title>
     <link rel="stylesheet" href="/static/style.css">
+    <style>{{ theme_css }}</style>
     {% block head %}{% endblock %}
 </head>
 <body>
     <nav class="nav" role="navigation" aria-label="Admin navigation">
         <div class="nav-brand">
-            <div class="nav-brand-icon" aria-hidden="true">D</div>
-            <span>DidiCafe</span>
+            <div class="nav-brand-icon" aria-hidden="true">{{ cafe_name.chars().next().unwrap_or('D') }}</div>
+            <span>{{ cafe_name }}</span>
         </div>
         <ul class="nav-links">
-            <li><a href="/admin" data-i18n="admin.nav.dashboard">Tableau de bord</a></li>
-            <li><a href="/admin/manage" data-i18n="admin.manage.title">Gestion</a></li>
-            <li><a href="/admin/audit" data-i18n="admin.nav.audit">Journal</a></li>
+            <li><a href="/admin"{% if current_page == "dashboard" %} class="active"{% endif %} data-i18n="admin.nav.dashboard">Tableau de bord</a></li>
+            <li><a href="/admin/manage"{% if current_page == "manage" %} class="active"{% endif %} data-i18n="admin.manage.title">Gestion</a></li>
+            <li><a href="/admin/audit"{% if current_page == "audit" %} class="active"{% endif %} data-i18n="admin.nav.audit">Journal</a></li>
+            <li><a href="/admin/settings"{% if current_page == "settings" %} class="active"{% endif %} data-i18n="admin.nav.settings">Fanovana</a></li>
             <li>
                 <form method="post" action="/admin/logout" style="display:inline">
                     <button type="submit" class="btn btn--outline btn--sm" data-i18n="admin.nav.logout">Hivoaka</button>

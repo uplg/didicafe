@@ -1,10 +1,10 @@
 {% extends "admin/base.html" %}
 
-{% block title %}DidiCafe Admin - Gestion{% endblock %}
+{% block title %}{{ cafe_name }} — Fitantanana{% endblock %}
 
 {% block content %}
 <div class="card">
-    <h1 data-i18n="admin.manage.title">Gestion</h1>
+    <h1 data-i18n="admin.manage.title">Fitantanana</h1>
 
     {% if let Some(msg) = message %}
     {% let args_json = msg.args_json() %}
@@ -15,7 +15,7 @@
     <div class="stats mt-md">
         <div class="stat">
             <div class="stat-value">{{ sessions.len() }}</div>
-            <div class="stat-label" data-i18n="admin.dash.sessions">Sessions actives</div>
+            <div class="stat-label" data-i18n="admin.dash.sessions">Sessions</div>
         </div>
         <div class="stat">
             <div class="stat-value">{{ tokens.len() }}</div>
@@ -23,177 +23,240 @@
         </div>
         <div class="stat">
             <div class="stat-value">{{ plans.len() }}</div>
-            <div class="stat-label" data-i18n="admin.plans.all">Forfaits</div>
+            <div class="stat-label" data-i18n="admin.plans.all">Drafitra</div>
         </div>
     </div>
 
     <!-- Generate Token -->
     <details class="mt-lg">
-        <summary class="btn btn--outline" data-i18n="admin.tokens.generate">Générer des codes</summary>
-        <form method="post" action="/admin/manage" class="mt-md">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <div class="form-group">
-                <label for="token_name" data-i18n="admin.tokens.name">Nom</label>
-                <input type="text" id="token_name" name="name" required placeholder="ex: Promo weekend">
-            </div>
-            <div class="form-group" style="flex:2">
-                <label for="plan_id" data-i18n="admin.tokens.select_plan">Forfait</label>
-                <select id="plan_id" name="plan_id" required>
-                    <option value="" data-i18n="admin.tokens.select_plan">Choisir...</option>
-                    {% for p in plans %}
-                    <option value="{{ p.id }}">{{ p.name }} ({{ p.duration_minutes }}min / {{ p.price_ariary }}Ar)</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="form-group" style="flex:1">
-                <label for="count" data-i18n="admin.tokens.quantity">Quantité</label>
-                <input type="number" id="count" name="count" min="1" max="100" value="1">
-            </div>
-            <button type="submit" class="btn btn--primary" data-i18n="admin.tokens.submit">Générer</button>
-        </form>
+        <summary class="section-header">
+            <h2>
+                <svg class="section-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 4l4 4-4 4"/></svg>
+                <span data-i18n="admin.tokens.generate">Mamorona code vaovao</span>
+            </h2>
+        </summary>
+        <div class="section-body">
+            <form method="post" action="/admin/manage" class="mt-sm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="form-group">
+                    <label for="token_name" data-i18n="admin.tokens.name">Anarana</label>
+                    <input type="text" id="token_name" name="name" required placeholder="ex: Promo weekend">
+                </div>
+                <div class="flex gap-md" style="flex-wrap:wrap">
+                    <div class="form-group" style="flex:2;min-width:10rem">
+                        <label for="plan_id" data-i18n="admin.tokens.select_plan">Drafitra</label>
+                        <select id="plan_id" name="plan_id" required>
+                            <option value="" data-i18n="admin.tokens.select_plan">Misafidiana...</option>
+                            {% for p in plans %}
+                            <option value="{{ p.id }}">{{ p.name }} ({{ p.duration_minutes }}min / {{ p.price_ariary }}Ar)</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex:1;min-width:6rem">
+                        <label for="count" data-i18n="admin.tokens.quantity">Isa</label>
+                        <input type="number" id="count" name="count" min="1" max="100" value="1">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn--primary" data-i18n="admin.tokens.submit">Mamorona</button>
+            </form>
+        </div>
     </details>
 
     <!-- Create Plan -->
-    <details class="mt-md">
-        <summary class="btn btn--outline" data-i18n="admin.plans.create">Créer un forfait</summary>
-        <form method="post" action="/admin/manage" class="mt-md">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <div class="form-group">
-                <label for="plan_name" data-i18n="admin.plans.name">Nom</label>
-                <input type="text" id="plan_name" name="plan_name" required placeholder="1h WiFi">
-            </div>
-            <div class="form-group">
-                <label for="duration" data-i18n="admin.plans.duration">Durée (min)</label>
-                <input type="number" id="duration" name="duration" min="1" value="60">
-            </div>
-            <div class="form-group">
-                <label for="price" data-i18n="admin.plans.price">Prix (Ar)</label>
-                <input type="number" id="price" name="price" min="0" value="1000">
-            </div>
-            <button type="submit" class="btn btn--primary" data-i18n="admin.plans.submit">Créer</button>
-        </form>
+    <details>
+        <summary class="section-header">
+            <h2>
+                <svg class="section-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 4l4 4-4 4"/></svg>
+                <span data-i18n="admin.plans.create">Mamorona drafitra vaovao</span>
+            </h2>
+        </summary>
+        <div class="section-body">
+            <form method="post" action="/admin/manage" class="mt-sm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="form-group">
+                    <label for="plan_name" data-i18n="admin.plans.name">Anarana</label>
+                    <input type="text" id="plan_name" name="plan_name" required placeholder="1h WiFi">
+                </div>
+                <div class="flex gap-md" style="flex-wrap:wrap">
+                    <div class="form-group" style="flex:1;min-width:8rem">
+                        <label for="duration" data-i18n="admin.plans.duration">Faharetan'ny (min)</label>
+                        <input type="number" id="duration" name="duration" min="1" value="60">
+                    </div>
+                    <div class="form-group" style="flex:1;min-width:8rem">
+                        <label for="price" data-i18n="admin.plans.price">Vidiny (Ar)</label>
+                        <input type="number" id="price" name="price" min="0" value="1000">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn--primary" data-i18n="admin.plans.submit">Mamorona</button>
+            </form>
+        </div>
     </details>
 
     <!-- Active Sessions -->
-    <h2 class="mt-lg" data-i18n="admin.dash.sessions">Sessions actives ({{ sessions.len() }})</h2>
-    {% if sessions.is_empty() %}
-    <p class="text-muted text-sm mt-sm" data-i18n="admin.sessions.none">Aucune session.</p>
-    {% else %}
-    <div class="table-wrap">
-        <table>
-            <thead>
-                <tr>
-                    <th>Code</th>
-                    <th>MAC</th>
-                    <th data-i18n="admin.sessions.col_remaining">Restant</th>
-                    <th><span class="sr-only">Actions</span></th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for s in sessions %}
-                <tr id="session-{{ s.id }}">
-                    <td>
-                        <span class="text-muted text-xs">{{ s.token_name() }}</span>
-                    </td>
-                    <td><code class="text-xs">{{ s.mac_address }}</code></td>
-                    <td>{{ s.remaining_seconds() / 60 }} min</td>
-                    <td>
-                        <button type="button" class="btn btn--danger btn--sm" onclick="disconnectSession({{ s.id }}, this)">×</button>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% endif %}
+    <details open>
+        <summary class="section-header">
+            <h2>
+                <svg class="section-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 4l4 4-4 4"/></svg>
+                <span data-i18n="admin.dash.sessions">Sessions</span>
+                <span class="section-count">{{ sessions.len() }}</span>
+            </h2>
+        </summary>
+        <div class="section-body">
+            {% if sessions.is_empty() %}
+            <p class="text-muted text-sm" data-i18n="admin.sessions.none">Tsy misy session.</p>
+            {% else %}
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Code</th>
+                            <th>MAC</th>
+                            <th data-i18n="admin.sessions.col_remaining">Sisa</th>
+                            <th><span class="sr-only">Actions</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in sessions %}
+                        <tr id="session-{{ s.id }}">
+                            <td>
+                                <span class="text-muted text-xs">{{ s.token_name() }}</span>
+                            </td>
+                            <td><code class="text-xs">{{ s.mac_address }}</code></td>
+                            <td>{{ s.remaining_seconds() / 60 }} min</td>
+                            <td>
+                                <button type="button" class="btn btn--danger btn--sm" data-disconnect="{{ s.id }}" aria-label="Disconnect">
+                                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+        </div>
+    </details>
 
     <!-- Tokens List -->
-    <h2 class="mt-lg" data-i18n="admin.tokens.all">Codes ({{ tokens.len() }})</h2>
-    {% if tokens.is_empty() %}
-    <p class="text-muted text-sm mt-sm">Aucun code.</p>
-    {% else %}
-    <div class="table-wrap">
-        <table>
-            <thead>
-                <tr>
-                    <th data-i18n="admin.tokens.col_name">Nom</th>
-                    <th data-i18n="admin.tokens.col_plan">Forfait</th>
-                    <th data-i18n="admin.tokens.col_code">Code</th>
-                    <th data-i18n="admin.tokens.col_status">Statut</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for t in tokens %}
-                <tr>
-                    <td>{% if let Some(n) = t.name %}{{ n }}{% else %}-{% endif %}</td>
-                    <td>{{ t.plan_name }}</td>
-                    <td><code>{{ t.code }}</code></td>
-                    <td>
-                        {% if t.status == "unused" %}
-                        <span class="badge badge--unused" data-i18n="status.unused">non utilisé</span>
-                        {% else if t.status == "active" %}
-                        <span class="badge badge--active" data-i18n="status.active">actif</span>
-                        {% else if t.status == "expired" %}
-                        <span class="badge badge--expired" data-i18n="status.expired">expiré</span>
-                        {% else %}
-                        <span class="badge badge--expired" data-i18n="status.revoked">révoqué</span>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% endif %}
+    <details open>
+        <summary class="section-header">
+            <h2>
+                <svg class="section-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 4l4 4-4 4"/></svg>
+                <span data-i18n="admin.tokens.all">Codes</span>
+                <span class="section-count">{{ tokens.len() }}</span>
+            </h2>
+
+        </summary>
+        <div class="section-body">
+            {% if tokens.is_empty() %}
+            <p class="text-muted text-sm">Tsy misy code.</p>
+            {% else %}
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th data-i18n="admin.tokens.col_name">Anarana</th>
+                            <th data-i18n="admin.tokens.col_plan">Drafitra</th>
+                            <th data-i18n="admin.tokens.col_code">Code</th>
+                            <th data-i18n="admin.tokens.col_status">Sata</th>
+                            <th><span class="sr-only">Actions</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for t in tokens %}
+                        <tr>
+                            <td>{% if let Some(n) = t.name %}{{ n }}{% else %}-{% endif %}</td>
+                            <td>{{ t.plan_name }}</td>
+                            <td><code{% if t.status == "unused" %} class="copyable"{% endif %}>{{ t.code }}</code></td>
+                            <td>
+                                {% if t.status == "unused" %}
+                                <span class="badge badge--unused" data-i18n="status.unused">mbola tsy nampiasaina</span>
+                                {% else if t.status == "active" %}
+                                <span class="badge badge--active" data-i18n="status.active">mandeha</span>
+                                {% else if t.status == "expired" %}
+                                <span class="badge badge--expired" data-i18n="status.expired">tapitra</span>
+                                {% else %}
+                                <span class="badge badge--expired" data-i18n="status.revoked">nesorina</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <button type="button" class="btn btn--outline btn--sm" data-copy-code="{{ t.code }}" aria-label="Copy code" data-i18n="admin.tokens.copy">
+                                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="5" width="9" height="9" rx="1"/><path d="M2 11V2.5A.5.5 0 012.5 2H11"/></svg>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+        </div>
+    </details>
 
     <!-- Plans List -->
-    <h2 class="mt-lg" data-i18n="admin.plans.all">Forfaits ({{ plans.len() }})</h2>
-    {% if plans.is_empty() %}
-    <p class="text-muted text-sm mt-sm">Aucun forfait.</p>
-    {% else %}
-    <div class="table-wrap">
-        <table>
-            <thead>
-                <tr>
-                    <th data-i18n="admin.plans.col_name">Nom</th>
-                    <th data-i18n="admin.plans.col_duration">Min</th>
-                    <th data-i18n="admin.plans.col_price">Prix</th>
-                    <th data-i18n="admin.plans.col_status">Statut</th>
-                    <th><span class="sr-only">Actions</span></th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for p in plans %}
-                <tr id="plan-{{ p.id }}">
-                    <td>{{ p.name }}</td>
-                    <td>{{ p.duration_minutes }}</td>
-                    <td>{{ p.price_ariary }} Ar</td>
-                    <td>
-                        {% if p.active %}
-                        <span class="badge badge--active" data-i18n="admin.plans.active">Actif</span>
-                        {% else %}
-                        <span class="badge badge--expired" data-i18n="admin.plans.inactive">Inactif</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        <button type="button" class="btn btn--outline btn--sm"
-                            data-plan-id="{{ p.id }}"
-                            data-plan-name="{{ p.name }}"
-                            data-plan-duration="{{ p.duration_minutes }}"
-                            data-plan-price="{{ p.price_ariary }}"
-                            onclick="editPlanFromEl(this)">✎</button>
-                        {% if p.active %}
-                        <button type="button" class="btn btn--danger btn--sm" onclick="togglePlan({{ p.id }}, false, this)">×</button>
-                        {% else %}
-                        <button type="button" class="btn btn--primary btn--sm" onclick="togglePlan({{ p.id }}, true, this)">✓</button>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% endif %}
+    <details open>
+        <summary class="section-header">
+            <h2>
+                <svg class="section-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 4l4 4-4 4"/></svg>
+                <span data-i18n="admin.plans.all">Drafitra</span>
+                <span class="section-count">{{ plans.len() }}</span>
+            </h2>
+        </summary>
+        <div class="section-body">
+            {% if plans.is_empty() %}
+            <p class="text-muted text-sm">Tsy misy drafitra.</p>
+            {% else %}
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th data-i18n="admin.plans.col_name">Anarana</th>
+                            <th data-i18n="admin.plans.col_duration">Min</th>
+                            <th data-i18n="admin.plans.col_price">Ariary</th>
+                            <th data-i18n="admin.plans.col_status">Sata</th>
+                            <th><span class="sr-only">Actions</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in plans %}
+                        <tr id="plan-{{ p.id }}">
+                            <td>{{ p.name }}</td>
+                            <td>{{ p.duration_minutes }}</td>
+                            <td>{{ p.price_ariary }} Ar</td>
+                            <td>
+                                {% if p.active %}
+                                <span class="badge badge--active" data-i18n="admin.plans.active">Mavitrika</span>
+                                {% else %}
+                                <span class="badge badge--expired" data-i18n="admin.plans.inactive">Tsy mavitrika</span>
+                                {% endif %}
+                            </td>
+                            <td class="flex gap-sm">
+                                <button type="button" class="btn btn--outline btn--sm"
+                                    data-edit-plan="{{ p.id }}"
+                                    data-plan-name="{{ p.name }}"
+                                    data-plan-duration="{{ p.duration_minutes }}"
+                                    data-plan-price="{{ p.price_ariary }}"
+                                    aria-label="Edit">
+                                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11.5 1.5l3 3L5 14H2v-3L11.5 1.5z"/></svg>
+                                </button>
+                                {% if p.active %}
+                                <button type="button" class="btn btn--danger btn--sm" data-toggle-plan="{{ p.id }}" data-activate="false" aria-label="Deactivate">
+                                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+                                </button>
+                                {% else %}
+                                <button type="button" class="btn btn--primary btn--sm" data-toggle-plan="{{ p.id }}" data-activate="true" aria-label="Activate">
+                                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 8l4 4 6-8"/></svg>
+                                </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+        </div>
+    </details>
 </div>
 {% endblock %}
 
@@ -204,26 +267,28 @@
 <dialog id="edit-modal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
-            <h2 data-i18n="admin.plans.edit">Modifier le forfait</h2>
-            <button type="button" class="btn btn--outline btn--sm" onclick="closeEditModal()">×</button>
+            <h2 data-i18n="admin.plans.edit">Fahasahana drafitra</h2>
+            <button type="button" class="btn btn--outline btn--sm" data-action="close-modal" aria-label="Close">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+            </button>
         </div>
-        <form onsubmit="event.preventDefault(); saveEditPlan();">
+        <form id="edit-plan-form">
             <input type="hidden" id="edit-id">
             <div class="form-group">
-                <label for="edit-name" data-i18n="admin.plans.name">Nom</label>
+                <label for="edit-name" data-i18n="admin.plans.name">Anarana</label>
                 <input type="text" id="edit-name" required>
             </div>
             <div class="form-group">
-                <label for="edit-duration" data-i18n="admin.plans.duration">Durée (min)</label>
+                <label for="edit-duration" data-i18n="admin.plans.duration">Faharetan'ny (min)</label>
                 <input type="number" id="edit-duration" min="1" required>
             </div>
             <div class="form-group">
-                <label for="edit-price" data-i18n="admin.plans.price">Prix (Ar)</label>
+                <label for="edit-price" data-i18n="admin.plans.price">Vidiny (Ar)</label>
                 <input type="number" id="edit-price" min="0" required>
             </div>
-            <div class="mt-md" style="display:flex;gap:var(--s-sm)">
-                <button type="button" class="btn btn--outline" onclick="closeEditModal()" data-i18n="admin.plans.cancel">Annuler</button>
-                <button type="submit" class="btn btn--primary" data-i18n="admin.plans.save">Enregistrer</button>
+            <div class="mt-md flex gap-sm">
+                <button type="button" class="btn btn--outline" data-action="close-modal" data-i18n="admin.plans.cancel">Aoka</button>
+                <button type="submit" class="btn btn--primary" data-i18n="admin.plans.save">Tehirizo</button>
             </div>
         </form>
     </div>

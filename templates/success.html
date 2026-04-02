@@ -1,23 +1,37 @@
 {% extends "base.html" %}
 
-{% block title %}DidiCafe{% endblock %}
+{% block title %}{{ cafe_name }}{% endblock %}
+{% block theme_css %}{{ theme_css }}{% endblock %}
 
 {% block body %}
 <main class="container" role="main">
     <div class="card text-center">
         <div class="brand">
-            <div class="brand-icon" aria-hidden="true">D</div>
+            <div class="brand-icon" aria-hidden="true">{{ cafe_name.chars().next().unwrap_or('D') }}</div>
             <h1 data-i18n="success.title">Tafiditra!</h1>
         </div>
 
-        <div class="status-ring status-ring--active" aria-hidden="true">
-            <span class="status-ring-inner">&#10003;</span>
+        {% if !plan_name.is_empty() %}
+        <p class="text-muted text-sm mb-md">{{ plan_name }}</p>
+        {% endif %}
+
+        <!-- SVG progress ring -->
+        <div class="progress-ring-wrap" aria-hidden="true">
+            <svg class="progress-ring" viewBox="0 0 120 120">
+                <circle class="progress-ring-bg" cx="60" cy="60" r="52" />
+                <circle class="progress-ring-fg" cx="60" cy="60" r="52"
+                    id="progress-ring"
+                    stroke-dasharray="326.73"
+                    stroke-dashoffset="0" />
+            </svg>
+            <span class="progress-ring-icon">&#10003;</span>
         </div>
 
         <p class="countdown-label" data-i18n="success.remaining">Fotoana sisa</p>
         <div class="countdown" id="countdown" role="timer" aria-live="polite" aria-atomic="true"
-             data-remaining="{{ remaining_seconds }}">
-            {{ remaining_seconds / 60 }}:00
+             data-remaining="{{ remaining_seconds }}"
+             data-total="{{ total_seconds }}">
+            --:--
         </div>
 
         <p class="text-muted text-sm mt-lg" data-i18n="success.hint">

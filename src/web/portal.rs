@@ -59,21 +59,37 @@ mod filters {
 struct PortalTemplate {
     error: Option<String>,
     csrf_token: String,
+    cafe_name: String,
+    welcome_message: String,
+    theme_css: String,
 }
 
 #[derive(Template)]
 #[template(path = "success.html")]
 struct SuccessTemplate {
     remaining_seconds: i64,
+    total_seconds: i64,
+    plan_name: String,
+    cafe_name: String,
+    theme_css: String,
 }
 
 #[derive(Template)]
 #[template(path = "expired.html")]
-struct ExpiredTemplate;
+struct ExpiredTemplate {
+    cafe_name: String,
+    contact_phone: String,
+    contact_name: String,
+    contact_hours: String,
+    theme_css: String,
+}
 
 #[derive(Template)]
 #[template(path = "privacy.html")]
-struct PrivacyTemplate;
+struct PrivacyTemplate {
+    cafe_name: String,
+    theme_css: String,
+}
 
 #[derive(Template)]
 #[template(path = "plans.html")]
@@ -83,6 +99,7 @@ struct PlansTemplate {
     contact_phone: String,
     contact_name: String,
     contact_hours: String,
+    theme_css: String,
 }
 
 // -- Form --
@@ -94,6 +111,20 @@ pub struct AuthForm {
 }
 
 // -- Routes --
+
+/// Helper: build a `PortalTemplate` with the portal config fields filled in.
+/// Reads runtime settings from DB, falling back to TOML defaults.
+async fn portal_template(state: &Arc<AppState>, error: Option<String>, csrf_token: String) -> PortalTemplate {
+    let portal = super::admin::portal_config_from_db(state).await;
+    let theme_css = portal.generate_theme_css();
+    PortalTemplate {
+        error,
+        csrf_token,
+        cafe_name: portal.cafe_name,
+        welcome_message: portal.welcome_message,
+        theme_css,
+    }
+}
 
 pub fn routes() -> Router<Arc<AppState>> {
     Router::new()
@@ -121,7 +152,7 @@ async fn portal_page(
     client: ClientInfo,
 ) -> Result<impl IntoResponse, AppError> {
     let csrf_token = state.portal_csrf_store.generate(&client.mac);
-    render(&PortalTemplate { error: None, csrf_token })
+    render(&portal_template(&state, None, csrf_token).await)
 }
 
 /// POST /portal/auth -- validate token, create session
@@ -132,10 +163,11 @@ async fn portal_auth(
 ) -> Result<impl IntoResponse, AppError> {
     // CSRF validation: Synchronizer Token Pattern (server-side)
     if !state.portal_csrf_store.validate(&client.mac, &form.csrf_token) {
-        return Ok(render(&PortalTemplate {
-            error: Some("portal.error.csrf".to_string()),
-            csrf_token: state.portal_csrf_store.generate(&client.mac),
-        })?.into_response());
+        return Ok(render(&portal_template(
+            &state,
+            Some("portal.error.csrf".to_string()),
+            state.portal_csrf_store.generate(&client.mac),
+        ).await)?.into_response());
     }
 
     // Rate limit check BEFORE any DB lookup (OWASP: never leak token existence)
@@ -155,10 +187,11 @@ async fn portal_auth(
 
     // Validate token format before any DB lookup (defense-in-depth)
     if let Err(_msg) = services::token::validate_token_format(&state.config.token, &code) {
-        return Ok(render(&PortalTemplate {
-            error: Some("portal.error.invalid".to_string()),
-            csrf_token: state.portal_csrf_store.generate(&client.mac),
-        })?.into_response());
+        return Ok(render(&portal_template(
+            &state,
+            Some("portal.error.invalid".to_string()),
+            state.portal_csrf_store.generate(&client.mac),
+        ).await)?.into_response());
     }
 
     // Validate token against DB
@@ -178,10 +211,11 @@ async fn portal_auth(
                 Ok(_) => Ok(Redirect::to("/portal/success").into_response()),
                 Err(e) => {
                     tracing::error!("session creation failed: {e}");
-                    Ok(render(&PortalTemplate {
-                        error: Some("portal.error.internal".to_string()),
-                        csrf_token: state.portal_csrf_store.generate(&client.mac),
-                    })?.into_response())
+                    Ok(render(&portal_template(
+                        &state,
+                        Some("portal.error.internal".to_string()),
+                        state.portal_csrf_store.generate(&client.mac),
+                    ).await)?.into_response())
                 }
             }
         }
@@ -197,18 +231,20 @@ async fn portal_auth(
                 Ok(_) => Ok(Redirect::to("/portal/success").into_response()),
                 Err(e) => {
                     tracing::error!("session migration failed: {e}");
-                    Ok(render(&PortalTemplate {
-                        error: Some("portal.error.expired".to_string()),
-                        csrf_token: state.portal_csrf_store.generate(&client.mac),
-                    })?.into_response())
+                    Ok(render(&portal_template(
+                        &state,
+                        Some("portal.error.expired".to_string()),
+                        state.portal_csrf_store.generate(&client.mac),
+                    ).await)?.into_response())
                 }
             }
         }
         TokenLookup::Invalid => {
-            Ok(render(&PortalTemplate {
-                error: Some("portal.error.invalid".to_string()),
-                csrf_token: state.portal_csrf_store.generate(&client.mac),
-            })?.into_response())
+            Ok(render(&portal_template(
+                &state,
+                Some("portal.error.invalid".to_string()),
+                state.portal_csrf_store.generate(&client.mac),
+            ).await)?.into_response())
         }
     }
 }
@@ -218,16 +254,45 @@ async fn success_page(
     State(state): State<Arc<AppState>>,
     client: ClientInfo,
 ) -> Result<impl IntoResponse, AppError> {
-    let remaining_seconds = get_remaining_seconds(&state, &client.mac).await?;
-    match remaining_seconds {
-        Some(secs) => Ok(render(&SuccessTemplate { remaining_seconds: secs })?.into_response()),
+    let session = state.db.get_session_by_mac(&client.mac).await
+        .map_err(AppError::Internal)?;
+
+    match session {
+        Some(s) => {
+            let remaining = s.remaining_seconds();
+            if remaining > 0 {
+                let portal = super::admin::portal_config_from_db(&state).await;
+                let theme_css = portal.generate_theme_css();
+                // Calculate total session duration from started_at → expires_at
+                let total = compute_total_seconds(&s.started_at, &s.expires_at);
+                Ok(render(&SuccessTemplate {
+                    remaining_seconds: remaining,
+                    total_seconds: total,
+                    plan_name: s.plan_name(),
+                    cafe_name: portal.cafe_name,
+                    theme_css,
+                })?.into_response())
+            } else {
+                Ok(Redirect::to("/portal").into_response())
+            }
+        }
         None => Ok(Redirect::to("/portal").into_response()),
     }
 }
 
 /// GET /portal/expired -- "session expired" page
-async fn expired_page() -> Result<impl IntoResponse, AppError> {
-    render(&ExpiredTemplate)
+async fn expired_page(
+    State(state): State<Arc<AppState>>,
+) -> Result<impl IntoResponse, AppError> {
+    let portal = super::admin::portal_config_from_db(&state).await;
+    let theme_css = portal.generate_theme_css();
+    render(&ExpiredTemplate {
+        cafe_name: portal.cafe_name,
+        contact_phone: portal.contact_phone,
+        contact_name: portal.contact_name,
+        contact_hours: portal.contact_hours,
+        theme_css,
+    })
 }
 
 // -- Status API --
@@ -268,8 +333,15 @@ async fn portal_status(
 }
 
 /// GET /portal/privacy — privacy notice
-async fn privacy_page() -> Result<impl IntoResponse, AppError> {
-    render(&PrivacyTemplate)
+async fn privacy_page(
+    State(state): State<Arc<AppState>>,
+) -> Result<impl IntoResponse, AppError> {
+    let portal = super::admin::portal_config_from_db(&state).await;
+    let theme_css = portal.generate_theme_css();
+    render(&PrivacyTemplate {
+        cafe_name: portal.cafe_name.clone(),
+        theme_css,
+    })
 }
 
 /// GET /portal/plans — public page listing active plans and contact info
@@ -278,34 +350,26 @@ async fn plans_page(
 ) -> Result<impl IntoResponse, AppError> {
     let plans = state.db.list_active_plans().await
         .map_err(AppError::Internal)?;
-    let portal = &state.config.portal;
+    let portal = super::admin::portal_config_from_db(&state).await;
+    let theme_css = portal.generate_theme_css();
     render(&PlansTemplate {
         plans,
-        cafe_name: portal.cafe_name.clone(),
-        contact_phone: portal.contact_phone.clone(),
-        contact_name: portal.contact_name.clone(),
-        contact_hours: portal.contact_hours.clone(),
+        cafe_name: portal.cafe_name,
+        contact_phone: portal.contact_phone,
+        contact_name: portal.contact_name,
+        contact_hours: portal.contact_hours,
+        theme_css,
     })
 }
 
 // -- Shared helpers --
 
-/// Get remaining seconds for a session by MAC address.
-/// Returns `None` if no active session exists.
-async fn get_remaining_seconds(state: &Arc<AppState>, mac: &str) -> Result<Option<i64>, AppError> {
-    let session = state.db.get_session_by_mac(mac).await
-        .map_err(AppError::Internal)?;
-
-    match session {
-        Some(s) => {
-            let secs = s.remaining_seconds();
-            if secs > 0 {
-                Ok(Some(secs))
-            } else {
-                Ok(None)
-            }
-        }
-        None => Ok(None),
+/// Compute total session duration in seconds from start and expiry timestamps.
+fn compute_total_seconds(started_at: &str, expires_at: &str) -> i64 {
+    let parse = |s: &str| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok();
+    match (parse(started_at), parse(expires_at)) {
+        (Some(start), Some(end)) => end.signed_duration_since(start).num_seconds().max(0),
+        _ => 0,
     }
 }
 

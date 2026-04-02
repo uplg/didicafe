@@ -1,18 +1,23 @@
 {% extends "base.html" %}
 
-{% block title %}DidiCafe{% endblock %}
+{% block title %}{{ cafe_name }}{% endblock %}
+{% block theme_css %}{{ theme_css }}{% endblock %}
 
 {% block body %}
 <main class="container" role="main">
-    <div class="card">
+    <div class="card{% if error.is_some() %} shake{% endif %}">
         {% include "partials/brand.html" %}
         {% include "partials/lang_switcher.html" %}
+
+        {% if !welcome_message.is_empty() %}
+        <p class="text-muted text-sm text-center mt-sm">{{ welcome_message }}</p>
+        {% endif %}
 
         {% if let Some(err) = error %}
         <div class="alert alert--error" role="alert" data-i18n="{{ err }}">{{ err }}</div>
         {% endif %}
 
-        <form method="post" action="/portal/auth" aria-label="Token authentication">
+        <form method="post" action="/portal/auth" aria-label="Token authentication" id="portal-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="form-group">
                 <label for="token" data-i18n="portal.title">Ampidiro ny code-nao</label>
@@ -33,18 +38,22 @@
                     aria-required="true"
                 >
             </div>
-            <button type="submit" class="btn btn--primary" data-i18n="portal.connect" data-i18n-aria="portal.connect_aria" aria-label="Hiditra amin'ny internet">
+            <button type="submit" class="btn btn--primary" id="portal-submit" data-i18n="portal.connect" data-i18n-aria="portal.connect_aria" aria-label="Hiditra amin'ny internet">
                 Hiditra
             </button>
         </form>
 
         <p class="text-muted text-xs text-center mt-lg" data-i18n="portal.privacy">
             En vous connectant, votre adresse MAC et IP sont stockées pour la durée de votre session.
-            <a href="/portal/privacy" data-i18n="portal.privacy_link">En savoir plus</a>.
         </p>
-        <p class="text-center mt-sm">
-            <a href="/portal/plans" class="text-sm" data-i18n="portal.see_plans">Jereo ny drafitra sy ny vidiny</a>
-        </p>
+        <div class="portal-links mt-sm">
+            <a href="/portal/plans" data-i18n="portal.see_plans">Jereo ny drafitra sy ny vidiny</a>
+            <a href="/portal/privacy" data-i18n="portal.privacy_link">Hahalala bebe kokoa</a>
+        </div>
     </div>
 </main>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/portal.js"></script>
 {% endblock %}

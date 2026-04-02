@@ -1,4 +1,4 @@
 <div class="brand">
-    <div class="brand-icon" aria-hidden="true">D</div>
-    <h1 data-i18n="portal.brand">DidiCafe</h1>
+    <div class="brand-icon" aria-hidden="true">{{ cafe_name.chars().next().unwrap_or('D') }}</div>
+    <h1 data-i18n="portal.brand">{{ cafe_name }}</h1>
 </div>
