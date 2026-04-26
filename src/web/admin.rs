@@ -255,7 +255,10 @@ async fn login_page(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
 ) -> Result<impl IntoResponse, AppError> {
     let ip_key = addr.ip().to_string();
-    let csrf_token = state.login_csrf_store.generate(&ip_key);
+    // get_or_generate (not generate) so back-to-back GETs from browsers
+    // (background polls, prefetch, retry) don't invalidate the token rendered
+    // on the first response.
+    let csrf_token = state.login_csrf_store.get_or_generate(&ip_key);
     let ctx = admin_ctx(&state).await;
     render(&LoginTemplate { error: None, csrf_token, cafe_name: ctx.cafe_name, theme_css: ctx.theme_css })
 }
