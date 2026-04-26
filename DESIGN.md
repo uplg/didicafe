@@ -42,21 +42,21 @@ One device. One binary. No multi-layer hacks.
 
 ### Chosen: Banana Pi BPI-R3 Mini
 
-Source: [envytech.fr](https://envytech.fr/boutique/banana-pi-bpi-r3-mini/) -- 105.84 EUR TTC
+Source: [AliExpress](https://fr.aliexpress.com/item/1005005882682378.html) -- ~126 EUR (previously listed at envytech.fr for 105.84 EUR but out of stock; envytech alternative was 215 EUR + 55 EUR shipping)
 
 | Spec | Detail |
 |------|--------|
-| SoC | MediaTek MT7986A (Filogic 830), quad-core Cortex-A53 @ 2GHz |
+| SoC | MediaTek MT7986A (Filogic 830), quad-core Cortex-A53 @ 2GHz + MT7531 switch |
 | RAM | 2GB DDR4 |
-| Storage | 8GB eMMC + microSD slot + 128MB SPI NAND |
+| Storage | 8GB eMMC + 128MB SPI NAND |
 | WiFi | WiFi 6 (MT7976C) dual-band 2x2 2.4GHz + 3x3 5GHz |
 | Ethernet | 2x 2.5GbE |
 | M.2 | Key B (USB) + Key M (PCIe) |
 | USB | 1x USB 2.0 |
 | Dimensions | 65x65mm, 100g |
-| Power | 20W/12V, USB-C PD |
+| Power | 12V, USB-C PD |
 | OS | Alpine Linux (primary), OpenWrt on NAND (recovery) |
-| Price | ~105 EUR / ~$115 USD |
+| Price | ~126 EUR |
 
 **Why this board:**
 
@@ -153,8 +153,8 @@ The resulting binary is fully static, zero runtime dependencies. `scp` it, `chmo
 
 | Board | When |
 |-------|------|
-| BPI-R3 Mini (current) | Default choice. Sufficient for 30-50 WiFi clients. |
-| BPI-R3 (full-size) | If SD card slot or SFP / USB 3.0 is needed. ~122 EUR. |
+| BPI-R3 Mini (current) | Default choice. Sufficient for 30-50 WiFi clients. ~126 EUR. |
+| BPI-R3 (full-size) | If SD card slot, 5x GbE, SFP, or USB 3.0 is needed. ~122 EUR. |
 | BPI-R4 | If WiFi 7, 4GB RAM, or 10G SFP+ is ever needed. ~176 EUR. |
 
 ### Why NOT Raspberry Pi
@@ -510,6 +510,7 @@ stateDiagram-v2
 | `GET` | `/portal/success` | "You're connected" confirmation |
 | `GET` | `/portal/expired` | "Session expired" page |
 | `GET` | `/portal/status` | Current session status (time remaining) |
+| `GET` | `/api/captive` | RFC 8908 Captive Portal API (`application/captive+json`) |
 
 #### Admin Endpoints (protected, served on port 8080, path-based auth)
 
@@ -589,6 +590,52 @@ The captive portal works by intercepting these HTTP requests (via nftables DNAT 
 
 **Important:** HTTPS probes cannot be intercepted without certificate errors. The nftables rules only redirect HTTP (port 80). This is sufficient because all major OS CPD probes use HTTP. HTTPS traffic from unauthenticated clients is simply dropped, which also triggers the CPD detection.
 
+### 8.1. CAPPORT Compliance (RFC 8908 + RFC 8910)
+
+URL-redirect CPD is a legacy technique. Modern clients (iOS 14+, macOS 11+, Windows 11) prefer the **CAPPORT (Captive Portal Architecture)** spec which standardizes a JSON API the client can poll for session state.
+
+**RFC 8908 — Captive Portal API.** DidiCafe exposes `GET /api/captive` returning `application/captive+json`:
+
+```json
+{
+  "captive": true,
+  "user-portal-url": "http://didicafe.local:8080/portal",
+  "venue-info-url": "http://didicafe.local:8080/portal/plans",
+  "can-extend-session": false
+}
+```
+
+When the client has an active session, the response is:
+
+```json
+{
+  "captive": false,
+  "user-portal-url": "http://didicafe.local:8080/portal",
+  "venue-info-url": "http://didicafe.local:8080/portal/plans",
+  "can-extend-session": false,
+  "seconds-remaining": 1742
+}
+```
+
+The handler identifies the client by ARP-resolving its source IP to a MAC, then looking up the session by MAC. On lookup failure (e.g., a request that did not come from the LAN), it defaults to `captive: true` — safe.
+
+**RFC 8908 §4 — Captive-Portal HTTP header.** All portal-side responses (HTML pages, CPD redirects, the JSON API itself) carry the header
+
+```
+Captive-Portal: <http://didicafe.local:8080/api/captive>
+```
+
+so any HTTP exchange between the client and the portal advertises where the API lives. The header is added by middleware on `portal_router` and `combined_router`; it is **not** emitted on the admin HTTPS listener (admins are not captive clients).
+
+**RFC 8910 — Discovery via DHCP.** The CAPPORT API URL is advertised to clients via:
+
+- **DHCPv4 option 114** — emitted by `dnsmasq` (`dhcp-option=114,…`).
+- **DHCPv6 option 103** — same payload, for IPv6 LANs. Currently commented out in `config/dnsmasq.conf` until IPv6 is enabled.
+
+The option payload **MUST** point to the JSON API (`/api/captive`), not the HTML portal page. Clients that don't support CAPPORT will fall back to legacy CPD probe redirects.
+
+**Caching.** Per RFC 8908 §6, the response includes `Cache-Control: no-store` (added by the `security_headers` middleware on all `/api/*` paths). This prevents intermediate caches from serving stale session state.
+
 ---
 
 ## 9. Security Considerations
@@ -640,7 +687,7 @@ Clients could try to spoof an authenticated client's MAC address. Mitigations:
 
 | Layer | Technology | Why |
 |-------|-----------|-----|
-| Hardware | Banana Pi BPI-R3 Mini | Purpose-built router SBC, dual 2.5GbE, WiFi 6, MT7986A, 65x65mm |
+| Hardware | Banana Pi BPI-R3 Mini | Purpose-built router SBC, dual 2.5GbE, WiFi 6, MT7986A, 65x65mm, ~126 EUR |
 | OS | Alpine Linux arm64 | musl-native, ~130 MB base, fast boot, `apk` package manager, OpenRC init |
 | WiFi AP | hostapd | Industry standard, full control over AP configuration |
 | DHCP/DNS | dnsmasq | Lightweight, proven, perfect for this scale |
@@ -670,8 +717,10 @@ didicafe/
 │   │   ├── models.rs          # Plan, Token, Session structs
 │   │   └── queries.rs         # SQL queries
 │   ├── web/
-│   │   ├── mod.rs             # Router setup
+│   │   ├── mod.rs             # Router setup, security + Captive-Portal middleware
 │   │   ├── portal.rs          # GET/POST /portal/*, captive portal pages
+│   │   ├── captive.rs         # GET /api/captive — RFC 8908 JSON API
+│   │   ├── cpd.rs             # CPD probe redirects (Apple/Android/Windows/Linux)
 │   │   ├── admin.rs           # GET/POST /admin/*, admin dashboard
 │   │   ├── api.rs             # REST API for tokens, sessions, plans
 │   │   └── middleware.rs      # Auth middleware, rate limiting
@@ -792,9 +841,11 @@ dhcp-option=6,10.10.0.1
 server=8.8.8.8
 server=1.1.1.1
 
-# Captive portal advertisement (RFC 8910)
-# Tells modern devices where the portal is
-dhcp-option=114,http://10.10.0.1:8080/portal
+# RFC 8910: advertise the CAPPORT JSON API URL to modern clients.
+# MUST point to the JSON API (RFC 8908), not the HTML portal page.
+dhcp-option=114,http://didicafe.local:8080/api/captive
+# DHCPv6 equivalent (option 103) — uncomment when IPv6 is enabled on the LAN.
+# dhcp-option=option6:103,http://didicafe.local:8080/api/captive
 
 # Log DHCP leases (useful for debugging)
 log-dhcp
@@ -885,11 +936,11 @@ rc-service didicafe start
 
 | Item | Cost (approx.) |
 |------|----------------|
-| Banana Pi BPI-R3 Mini | 105 EUR (~$115) |
+| Banana Pi BPI-R3 Mini | ~126 EUR |
 | MicroSD Card (32GB) | $8 |
 | USB-C PD Power Supply (12V/20W) | $12 |
 | Ethernet Cable (Cat6, 1m) | $5 |
-| **Total** | **~130 EUR / ~$140** |
+| **Total** | **~151 EUR** |
 
 The Starlink subscription is a separate ongoing cost. No additional router, AP, or server hardware needed.
 

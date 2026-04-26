@@ -151,7 +151,9 @@ async fn portal_page(
     State(state): State<Arc<AppState>>,
     client: ClientInfo,
 ) -> Result<impl IntoResponse, AppError> {
-    let csrf_token = state.portal_csrf_store.generate(&client.mac);
+    // get_or_generate (not generate) so back-to-back GETs from captive
+    // browsers don't invalidate the token rendered on the first response.
+    let csrf_token = state.portal_csrf_store.get_or_generate(&client.mac);
     render(&portal_template(&state, None, csrf_token).await)
 }
 
@@ -163,6 +165,11 @@ async fn portal_auth(
 ) -> Result<impl IntoResponse, AppError> {
     // CSRF validation: Synchronizer Token Pattern (server-side)
     if !state.portal_csrf_store.validate(&client.mac, &form.csrf_token) {
+        tracing::warn!(
+            client_mac = %client.mac,
+            submitted_csrf = %form.csrf_token,
+            "portal_auth: CSRF validation failed"
+        );
         return Ok(render(&portal_template(
             &state,
             Some("portal.error.csrf".to_string()),
@@ -174,9 +181,15 @@ async fn portal_auth(
     match state.rate_limiter.check_and_record(client.ip) {
         RateLimitResult::Allowed => {}
         RateLimitResult::Throttled => {
+            tracing::warn!(client_ip = %client.ip, "portal_auth: rate limited (throttled)");
             return Err(AppError::RateLimited { retry_after: None });
         }
         RateLimitResult::Banned { retry_after_seconds } => {
+            tracing::warn!(
+                client_ip = %client.ip,
+                retry_after_seconds,
+                "portal_auth: rate limited (banned)"
+            );
             return Err(AppError::RateLimited {
                 retry_after: Some(retry_after_seconds),
             });
@@ -184,9 +197,16 @@ async fn portal_auth(
     }
 
     let code = form.token.trim().to_uppercase();
+    tracing::debug!(client_mac = %client.mac, code = %code, "portal_auth: validating token");
 
     // Validate token format before any DB lookup (defense-in-depth)
-    if let Err(_msg) = services::token::validate_token_format(&state.config.token, &code) {
+    if let Err(msg) = services::token::validate_token_format(&state.config.token, &code) {
+        tracing::warn!(
+            client_mac = %client.mac,
+            code = %code,
+            error = %msg,
+            "portal_auth: token format invalid"
+        );
         return Ok(render(&portal_template(
             &state,
             Some("portal.error.invalid".to_string()),
@@ -240,6 +260,11 @@ async fn portal_auth(
             }
         }
         TokenLookup::Invalid => {
+            tracing::warn!(
+                client_mac = %client.mac,
+                code = %code,
+                "portal_auth: token DB lookup returned Invalid"
+            );
             Ok(render(&portal_template(
                 &state,
                 Some("portal.error.invalid".to_string()),

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo test *)",
+      "Bash(curl --version)",
+      "WebFetch(domain:fejes.dev)",
+      "WebSearch",
+      "WebFetch(domain:wiki.alpinelinux.org)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:deepwiki.com)"
+    ]
+  }
+}

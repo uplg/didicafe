@@ -3,6 +3,7 @@ pub mod extractors;
 pub mod portal;
 pub mod admin;
 pub mod api;
+pub mod captive;
 pub mod cpd;
 
 pub use error::AppError;
@@ -134,6 +135,24 @@ async fn security_headers(request: Request, next: Next) -> Response {
     response
 }
 
+/// `Captive-Portal:` HTTP header middleware (RFC 8908 §4).
+///
+/// Added to all responses on the portal-facing listener so any HTTP
+/// interaction by a captive client carries a pointer to the CAPPORT API.
+/// Modern OS captive portal browsers honor this header and use the URL
+/// to query session state without scraping HTML.
+async fn captive_portal_header(
+    State(state): State<Arc<AppState>>,
+    request: Request,
+    next: Next,
+) -> Response {
+    let mut response = next.run(request).await;
+    if let Some(value) = captive::captive_portal_header_value(&state.config) {
+        response.headers_mut().insert("Captive-Portal", value);
+    }
+    response
+}
+
 /// HSTS header middleware for the admin HTTPS listener.
 ///
 /// Tells browsers to always use HTTPS for this host:port combination.
@@ -188,12 +207,16 @@ pub fn portal_router(state: Arc<AppState>) -> Router {
         .merge(portal::routes())
         // CPD (Captive Portal Detection) probe handlers
         .merge(cpd::routes())
+        // RFC 8908 Captive Portal API (JSON)
+        .merge(captive::routes())
         // Static files (CSS, JS, favicon, etc.)
         .nest_service("/static", ServeDir::new(static_dir))
         // Catch-all: any unmatched route redirects to the portal.
         // This handles CPD probes from less common OSes and any
         // stray HTTP requests DNATed by nftables.
         .fallback(any(|| async { Redirect::to("/portal") }))
+        // Captive-Portal header (RFC 8908 §4) on all portal-side responses
+        .layer(middleware::from_fn_with_state(Arc::clone(&state), captive_portal_header))
         // Security headers on all responses
         .layer(middleware::from_fn(security_headers))
         .with_state(state)
@@ -237,6 +260,8 @@ pub fn combined_router(state: Arc<AppState>) -> Router {
         .merge(portal::routes())
         // CPD (Captive Portal Detection) probe handlers
         .merge(cpd::routes())
+        // RFC 8908 Captive Portal API (JSON)
+        .merge(captive::routes())
         // Admin UI routes
         .merge(admin::routes())
         // REST API routes
@@ -245,6 +270,8 @@ pub fn combined_router(state: Arc<AppState>) -> Router {
         .nest_service("/static", ServeDir::new(static_dir))
         // Catch-all: any unmatched route redirects to the portal.
         .fallback(any(|| async { Redirect::to("/portal") }))
+        // Captive-Portal header (RFC 8908 §4)
+        .layer(middleware::from_fn_with_state(Arc::clone(&state), captive_portal_header))
         // Security headers on all responses
         .layer(middleware::from_fn(security_headers))
         .with_state(state)
@@ -267,4 +294,61 @@ fn resolve_static_dir() -> std::path::PathBuf {
     }
     // Fallback: relative path (works when CWD is project root)
     std::path::PathBuf::from("static")
+}
+
+#[cfg(test)]
+mod tests {
+    use tower::ServiceExt;
+
+    use crate::test_utils::{test_get, test_state};
+
+    /// Every portal-side response carries the `Captive-Portal:` header
+    /// (RFC 8908 §4) pointing to the CAPPORT API URL.
+    #[tokio::test]
+    async fn portal_router_emits_captive_portal_header() {
+        let state = test_state().await;
+        let router = super::portal_router(state);
+
+        let response = router.oneshot(test_get("/portal")).await.unwrap();
+        let header = response
+            .headers()
+            .get("Captive-Portal")
+            .expect("Captive-Portal header must be set")
+            .to_str()
+            .unwrap();
+
+        assert!(header.starts_with('<'), "header must start with '<': {header}");
+        assert!(header.ends_with('>'), "header must end with '>': {header}");
+        assert!(header.contains("/api/captive"), "header must reference API URL: {header}");
+    }
+
+    /// Same for the combined dev router.
+    #[tokio::test]
+    async fn combined_router_emits_captive_portal_header() {
+        let state = test_state().await;
+        let router = super::combined_router(state);
+
+        let response = router.oneshot(test_get("/api/captive")).await.unwrap();
+        let header = response
+            .headers()
+            .get("Captive-Portal")
+            .expect("Captive-Portal header must be set")
+            .to_str()
+            .unwrap();
+        assert!(header.contains("/api/captive"));
+    }
+
+    /// Admin router does NOT emit the Captive-Portal header — it's a portal-side
+    /// concern only and admins are not captive clients.
+    #[tokio::test]
+    async fn admin_router_does_not_emit_captive_portal_header() {
+        let state = test_state().await;
+        let router = super::admin_router(state);
+
+        let response = router.oneshot(test_get("/admin/login")).await.unwrap();
+        assert!(
+            response.headers().get("Captive-Portal").is_none(),
+            "admin router must not emit Captive-Portal header"
+        );
+    }
 }

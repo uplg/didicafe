@@ -54,6 +54,31 @@ impl PortalCsrfStore {
         token
     }
 
+    /// Return the existing non-expired token for a MAC, or generate a new one.
+    ///
+    /// Why: captive portal browsers (Android, iOS) may issue multiple GET /portal
+    /// in quick succession (initial render, CPD background poll, refresh). If we
+    /// regenerated on every GET, the form rendered first would carry a token that
+    /// gets invalidated by the 2nd GET — submitting it then fails with CSRF
+    /// mismatch even though the user did everything right.
+    pub fn get_or_generate(&self, mac: &str) -> String {
+        let mac_lower = mac.to_lowercase();
+        let ttl = std::time::Duration::from_secs(CSRF_TOKEN_TTL_SECS);
+
+        // Fast path: return existing valid token
+        {
+            let tokens = self.tokens.read().expect("csrf store lock poisoned");
+            if let Some(entry) = tokens.get(&mac_lower)
+                && entry.created_at.elapsed() < ttl
+            {
+                return entry.token.clone();
+            }
+        }
+
+        // Slow path: generate fresh token
+        self.generate(mac)
+    }
+
     /// Validate a submitted CSRF token against the stored token for a MAC.
     /// Returns true if valid, then removes the token (one-time use).
     /// Uses constant-time comparison to prevent timing side-channels.
