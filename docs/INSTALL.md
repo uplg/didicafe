@@ -335,7 +335,8 @@ port = 8080
 interfaces = "br-lan"
 
 [database]
-path = "/var/lib/didicafe/didicafe.db"
+# /var/lib is tmpfs on OpenWrt — wiped on every reboot. Use /srv (f2fs overlay).
+path = "/srv/didicafe/didicafe.db"
 
 [admin]
 username = "admin"
@@ -492,8 +493,107 @@ Before handing the box to a real café, durcir :
 - [ ] Install `certs/ca.pem` on the manager's device(s)
 - [ ] Set `admin.allowed_networks = ["10.10.0.0/24"]` in the TOML
 - [ ] Enable `dropbear` key-based auth, disable password SSH
-- [ ] Set up daily `sqlite3 .backup` of `/var/lib/didicafe/didicafe.db`
+- [ ] Set up daily `sqlite3 .backup` of `/srv/didicafe/didicafe.db`
 - [ ] Check `/etc/sysupgrade.conf` includes our config files so OpenWrt
-      sysupgrades don't wipe them (`/etc/didicafe/`, `/opt/didicafe/`,
-      `/etc/nftables.didicafe.nft`, `/etc/init.d/didicafe`,
-      `/var/lib/didicafe/`)
+      sysupgrades don't wipe them (`/srv/didicafe/`, `/etc/didicafe/`,
+      `/opt/didicafe/`, `/etc/nftables.didicafe.nft`, `/etc/init.d/didicafe`)
+
+---
+
+## 9. Remote access (Tailscale)
+
+Starlink puts the box behind **CGNAT** — there is no public IP, so you
+cannot port-forward to it from the Internet. To support the operator
+("the café manager calls you with a problem, you need to SSH in"), use a
+mesh VPN. Tailscale is the simplest option, free for personal use, runs
+on OpenWrt, and traverses NAT automatically.
+
+### 9.1 Install Tailscale on the box (one-time, by the integrator)
+
+```sh
+apk update
+apk add tailscale tailscale-bird tailscaled  # exact package names may
+                                             # vary across OpenWrt versions
+
+# Auto-start at boot
+/etc/init.d/tailscale enable
+/etc/init.d/tailscale start
+```
+
+Then bring up the interface:
+
+```sh
+tailscale up --ssh --advertise-tags=tag:didicafe
+```
+
+The command prints a URL. Open it on your laptop, log in to Tailscale
+(Google / Microsoft / GitHub auth), authorize the device.
+
+Once authorized, the box is reachable at a private `*.ts.net` hostname
+from any device on your tailnet — phone, laptop, anywhere on the
+Internet — without opening a port on the café's WAN.
+
+### 9.2 Test from your laptop
+
+After installing Tailscale on your laptop too:
+
+```sh
+tailscale ip didicafe-cafename       # the box's tailscale IP
+ssh root@didicafe-cafename            # SSH over the mesh
+ssh -L 10443:10.10.0.1:443 root@didicafe-cafename    # tunnel admin to localhost
+```
+
+Then `https://localhost:10443/admin/login` from your laptop — full admin
+access from anywhere, no port forwarding, no public IP.
+
+### 9.3 What to communicate to the café manager
+
+The manager has **no remote access work to do**. Their only job is:
+
+> *"If the WiFi stops working at the café, unplug the box, wait 10
+> seconds, plug it back. If still broken after that, call/WhatsApp me at
+> [your number] — I can fix it remotely without coming over."*
+
+You (the integrator) handle remote support via your tailnet.
+
+### 9.4 Lock down Tailscale
+
+In the [Tailscale admin console](https://login.tailscale.com/admin):
+
+- Disable key expiry on the box (set "auto-renew" or "never expire")
+- Restrict who can SSH to the box: only your user, no one else
+- Tag the device `tag:didicafe` and create an ACL like:
+  ```
+  "acls": [
+    { "action": "accept", "src": ["your-email@example.com"], "dst": ["tag:didicafe:*"] }
+  ]
+  ```
+- Optionally, enable [Tailscale SSH](https://tailscale.com/kb/1193/tailscale-ssh)
+  → no SSH keys to manage, auth via your tailnet identity.
+
+### 9.5 Alternative — WireGuard direct (no third-party service)
+
+If you don't want to depend on Tailscale's coordination server, set up
+plain WireGuard between your laptop and the box. Requires a small VPS
+with a public IP that both endpoints can reach.
+
+Out of scope here — see [OpenWrt WireGuard quick start](https://openwrt.org/docs/guide-user/services/vpn/wireguard/start)
+if you go this route.
+
+---
+
+## 10. Going live — checklist
+
+Once §1–8 are done and §9 (Tailscale) gives you remote access:
+
+1. **Bench-test 24 h** in your lab on Mac sharing or your home WiFi
+   (any DHCP upstream is equivalent to Starlink from the box's POV)
+2. **Pre-create plans** in the admin GUI
+3. **Pre-print 50 tokens** on receipt paper
+4. **Install `certs/ca.pem`** on the manager's phone
+5. **Set up daily DB backup** to your tailnet (rsync over Tailscale SSH)
+6. **Document** the manager-side procedure: "WiFi name = DidiCafe,
+   admin URL = `https://admin.didicafe.local`, your password is X,
+   if anything goes wrong call me first"
+7. Box arrives at the café, plug ethernet to Starlink router and USB-C
+   to the wall PSU (12 V PD), done. The first boot takes ~10 s.
