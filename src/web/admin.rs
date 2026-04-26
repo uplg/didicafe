@@ -14,10 +14,17 @@ use subtle::ConstantTimeEq;
 
 use crate::AppState;
 use crate::config::PortalConfig;
+use crate::net::arp;
 use crate::services::rate_limit::RateLimitResult;
 use super::error::{AppError, render};
 use super::extractors::{AdminSession, CsrfToken, extract_cookie, ADMIN_COOKIE_NAME};
 use super::I18nMessage;
+
+/// Duration the admin's MAC stays in the firewall `auth_clients` set after a
+/// successful admin login. Long enough that the manager doesn't need to
+/// re-authorize daily, short enough that a stolen device eventually loses
+/// internet access. 7 days is the typical compromise.
+const ADMIN_AUTHORIZE_TIMEOUT_SECS: u64 = 7 * 24 * 3600;
 
 /// Maximum length for login form fields to prevent Argon2 DoS.
 /// OWASP recommends limiting password length to prevent hash-flooding.
@@ -333,6 +340,38 @@ async fn login_submit(
         // Session fixation fix: invalidate any existing session from this cookie
         if let Some(old_id) = extract_cookie(&headers, ADMIN_COOKIE_NAME) {
             state.admin_sessions.remove(&old_id);
+        }
+
+        // Auto-authorize the manager's device for internet access. Without
+        // this, the manager could log in to the admin GUI but couldn't browse
+        // the web on the same WiFi (the captive flow blocks LAN→WAN forward
+        // for non-auth clients). We add the MAC+IP to the same nftables set
+        // used by paying customers, with a long timeout.
+        let client_ip = addr.ip();
+        if let Some(client_mac) = arp::lookup_mac(client_ip).await {
+            if let Err(e) = state.firewall.authorize_client(
+                &client_mac,
+                &client_ip.to_string(),
+                ADMIN_AUTHORIZE_TIMEOUT_SECS,
+            ).await {
+                tracing::warn!(
+                    %client_mac,
+                    %client_ip,
+                    "admin login: failed to authorize client in nftables: {e}"
+                );
+            } else {
+                tracing::info!(
+                    %client_mac,
+                    %client_ip,
+                    timeout_secs = ADMIN_AUTHORIZE_TIMEOUT_SECS,
+                    "admin login: client authorized for internet access"
+                );
+            }
+        } else {
+            tracing::warn!(
+                %client_ip,
+                "admin login: MAC not in ARP table, skipping firewall authorization"
+            );
         }
 
         let session_id = state.admin_sessions.create();
