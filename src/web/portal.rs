@@ -75,6 +75,19 @@ struct SuccessTemplate {
 }
 
 #[derive(Template)]
+#[template(path = "status.html")]
+struct StatusTemplate {
+    /// True when the client has an active session; controls which UI variant
+    /// the template renders (countdown vs. "no active session" CTA).
+    connected: bool,
+    remaining_seconds: i64,
+    total_seconds: i64,
+    plan_name: String,
+    cafe_name: String,
+    theme_css: String,
+}
+
+#[derive(Template)]
 #[template(path = "expired.html")]
 struct ExpiredTemplate {
     cafe_name: String,
@@ -133,7 +146,8 @@ pub fn routes() -> Router<Arc<AppState>> {
         .route("/portal/auth", post(portal_auth))
         .route("/portal/success", get(success_page))
         .route("/portal/expired", get(expired_page))
-        .route("/portal/status", get(portal_status))
+        .route("/portal/status", get(status_page))
+        .route("/portal/status.json", get(portal_status))
         .route("/portal/privacy", get(privacy_page))
         .route("/portal/plans", get(plans_page))
 }
@@ -320,19 +334,60 @@ async fn expired_page(
     })
 }
 
+/// GET /portal/status -- public session-status page.
+///
+/// Anyone connected to the WiFi can hit this URL. We identify the client by
+/// MAC (resolved from their IP via ARP) and render either:
+///   - the countdown (when a session is active), or
+///   - a "no active session" card with a CTA back to `/portal`.
+///
+/// Distinct from `/portal/success`: success is the post-redemption landing
+/// page, while status is meant to be revisited at any time.
+async fn status_page(
+    State(state): State<Arc<AppState>>,
+    client: ClientInfo,
+) -> Result<impl IntoResponse, AppError> {
+    let session = state.db.get_session_by_mac(&client.mac).await
+        .map_err(AppError::Internal)?;
+
+    let portal = super::admin::portal_config_from_db(&state).await;
+    let theme_css = portal.generate_theme_css();
+
+    let template = match session {
+        Some(s) if s.remaining_seconds() > 0 => StatusTemplate {
+            connected: true,
+            remaining_seconds: s.remaining_seconds(),
+            total_seconds: compute_total_seconds(&s.started_at, &s.expires_at),
+            plan_name: s.plan_name(),
+            cafe_name: portal.cafe_name,
+            theme_css,
+        },
+        _ => StatusTemplate {
+            connected: false,
+            remaining_seconds: 0,
+            total_seconds: 0,
+            plan_name: String::new(),
+            cafe_name: portal.cafe_name,
+            theme_css,
+        },
+    };
+
+    render(&template)
+}
+
 // -- Status API --
 
-/// JSON response for `/portal/status`.
+/// JSON response for `/portal/status.json`.
 #[derive(Serialize)]
 struct PortalStatusResponse {
     connected: bool,
     remaining_seconds: i64,
 }
 
-/// GET /portal/status -- current session status for this client (by MAC).
+/// GET /portal/status.json -- current session status for this client (by MAC).
 ///
-/// Returns JSON so the success page JS countdown can sync with the server,
-/// and so CPD probes can check connectivity state.
+/// Returns JSON so the success/status page JS countdown can sync with the
+/// server, and so CPD probes can check connectivity state.
 async fn portal_status(
     State(state): State<Arc<AppState>>,
     client: ClientInfo,
@@ -539,17 +594,57 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_portal_status_no_session() {
+    async fn test_portal_status_json_no_session() {
         let state = test_state().await;
         let app = portal_router(state);
 
-        let response = app.oneshot(test_get("/portal/status")).await.unwrap();
+        let response = app.oneshot(test_get("/portal/status.json")).await.unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(json["connected"], false);
         assert_eq!(json["remaining_seconds"], 0);
+    }
+
+    /// HTML status page renders the "no active session" variant for
+    /// unauthenticated visitors (no redirect — must remain reachable so
+    /// the user can see the CTA back to /portal).
+    #[tokio::test]
+    async fn test_status_page_no_session_renders_cta() {
+        let state = test_state().await;
+        let app = portal_router(state);
+
+        let response = app.oneshot(test_get("/portal/status")).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let html = String::from_utf8_lossy(&body);
+        assert!(html.contains("status.no_session"), "expected no-session i18n key");
+        assert!(html.contains(r#"href="/portal""#), "expected CTA link to /portal");
+        // No countdown widget when not connected.
+        assert!(!html.contains(r#"id="countdown""#));
+    }
+
+    /// HTML status page shows the countdown when the client has an active session.
+    #[tokio::test]
+    async fn test_status_page_active_session_renders_countdown() {
+        let state = test_state().await;
+        let plan_id = state.db.create_plan("1h WiFi", 60, 1000).await.unwrap();
+        let token_id = state.db.create_token("DIDI-ABCD-EF23", None, plan_id).await.unwrap();
+        crate::services::session::create_session(
+            &state, token_id, 60, "02:00:00:00:00:01", "127.0.0.1",
+        ).await.unwrap();
+
+        let app = portal_router(Arc::clone(&state));
+        let response = app.oneshot(test_get("/portal/status")).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let html = String::from_utf8_lossy(&body);
+        assert!(html.contains(r#"id="countdown""#), "expected countdown widget");
+        assert!(html.contains("status.remaining"));
+        assert!(html.contains("data-remaining="));
     }
 
     #[tokio::test]

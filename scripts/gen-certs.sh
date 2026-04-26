@@ -6,8 +6,8 @@
 #
 # Defaults:
 #   output_dir   = ./certs
-#   domain       = didicafe.local
-#   admin_domain = admin.didicafe.local
+#   domain       = wifi.didicafe
+#   admin_domain = admin.wifi.didicafe
 #   ip           = 10.10.0.1
 #
 # After generation, install ca.pem on the manager's phone/PC once:
@@ -21,8 +21,8 @@
 set -eu
 
 CERT_DIR="${1:-./certs}"
-DOMAIN="${2:-didicafe.local}"
-ADMIN_DOMAIN="${3:-admin.didicafe.local}"
+DOMAIN="${2:-wifi.didicafe}"
+ADMIN_DOMAIN="${3:-admin.wifi.didicafe}"
 IP="${4:-10.10.0.1}"
 
 CA_KEY="${CERT_DIR}/ca-key.pem"

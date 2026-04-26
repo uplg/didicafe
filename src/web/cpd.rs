@@ -10,7 +10,7 @@
 //! to our server. We respond with a redirect to the portal page, which
 //! triggers the OS to open its built-in captive portal browser.
 //!
-//! Redirections use the configured domain (e.g. `http://didicafe.local/portal`)
+//! Redirections use the configured domain (e.g. `http://wifi.didicafe/portal`)
 //! so the user sees a friendly URL instead of a raw IP address.
 
 use std::sync::Arc;
@@ -37,7 +37,7 @@ pub fn routes() -> Router<Arc<AppState>> {
 /// (though they'll go through the real internet, not our server).
 ///
 /// Uses the configured domain so the captive browser shows a friendly URL
-/// (e.g. `http://didicafe.local/portal`) instead of a raw IP.
+/// (e.g. `http://wifi.didicafe/portal`) instead of a raw IP.
 async fn redirect_to_portal(State(state): State<Arc<AppState>>) -> Redirect {
     let domain = &state.config.portal.domain;
     let port = state.config.server.port;
@@ -73,7 +73,7 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         let location = response.headers().get("location").unwrap().to_str().unwrap();
-        assert_eq!(location, "http://didicafe.local:8080/portal");
+        assert_eq!(location, "http://wifi.didicafe:8080/portal");
     }
 
     #[tokio::test]
@@ -84,7 +84,7 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         let location = response.headers().get("location").unwrap().to_str().unwrap();
-        assert!(location.contains("didicafe.local"));
+        assert!(location.contains("wifi.didicafe"));
         assert!(location.ends_with("/portal"));
     }
 
@@ -135,6 +135,6 @@ mod tests {
         let response = app.oneshot(test_get("/hotspot-detect.html")).await.unwrap();
 
         let location = response.headers().get("location").unwrap().to_str().unwrap();
-        assert_eq!(location, "http://didicafe.local/portal");
+        assert_eq!(location, "http://wifi.didicafe/portal");
     }
 }

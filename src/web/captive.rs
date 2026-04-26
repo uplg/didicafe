@@ -130,7 +130,7 @@ async fn resolve_client_mac(ip: IpAddr) -> Option<String> {
 
 /// Build the absolute URL to the user-facing portal page.
 ///
-/// Uses the configured domain (e.g. `didicafe.local`) so devices see a
+/// Uses the configured domain (e.g. `wifi.didicafe`) so devices see a
 /// friendly URL. Omits the port when running on the standard HTTP port (80).
 pub fn portal_page_url(config: &Config) -> String {
     build_portal_url(config, "/portal")
@@ -196,11 +196,11 @@ mod tests {
         assert_eq!(json["can-extend-session"], false);
         assert_eq!(
             json["user-portal-url"],
-            "http://didicafe.local:8080/portal"
+            "http://wifi.didicafe:8080/portal"
         );
         assert_eq!(
             json["venue-info-url"],
-            "http://didicafe.local:8080/portal/plans"
+            "http://wifi.didicafe:8080/portal/plans"
         );
         // seconds-remaining must be omitted when captive=true
         assert!(json.get("seconds-remaining").is_none());
@@ -313,8 +313,8 @@ mod tests {
 
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(json["user-portal-url"], "http://didicafe.local/portal");
-        assert_eq!(json["venue-info-url"], "http://didicafe.local/portal/plans");
+        assert_eq!(json["user-portal-url"], "http://wifi.didicafe/portal");
+        assert_eq!(json["venue-info-url"], "http://wifi.didicafe/portal/plans");
     }
 
     #[test]

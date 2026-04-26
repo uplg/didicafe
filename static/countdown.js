@@ -5,7 +5,7 @@
  *
  * Reads the initial remaining seconds from a data attribute on #countdown,
  * then counts down every second. Syncs with the server every 60s via
- * /portal/status to correct clock drift.
+ * /portal/status.json to correct clock drift.
  *
  * Adaptive display format:
  *   - >= 60 min: "1h 23min"
@@ -67,7 +67,7 @@
 
     // Sync with server every 60s to correct drift
     function sync() {
-        fetch("/portal/status")
+        fetch("/portal/status.json")
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (!data.connected) {

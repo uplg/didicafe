@@ -131,13 +131,17 @@ fn default_audit_retention_days() -> i64 {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct PortalConfig {
-    /// Local domain name resolved by dnsmasq (e.g. "didicafe.local").
+    /// Local domain name resolved by dnsmasq (e.g. "wifi.didicafe").
     /// Used in CPD redirections and displayed in the UI.
+    /// Must NOT use the `.local` TLD: iOS resolves `.local` exclusively via
+    /// mDNS, and without an mDNS responder on the box, the captive sheet
+    /// can't follow the portal redirect on iPhones.
     #[serde(default = "default_portal_domain")]
     pub domain: String,
-    /// Admin domain resolved by dnsmasq (e.g. "admin.didicafe.local").
-    /// The manager types `https://admin.didicafe.local` in his browser.
-    /// Must be included as a SAN in the TLS certificate.
+    /// Admin domain resolved by dnsmasq (e.g. "admin.wifi.didicafe").
+    /// The manager types `https://admin.wifi.didicafe` in his browser.
+    /// Must be included as a SAN in the TLS certificate. Same `.local`
+    /// caveat as `domain` applies.
     #[serde(default = "default_admin_domain")]
     pub admin_domain: String,
     /// Display name for the café. Shown in the portal header and admin UI.
@@ -161,11 +165,11 @@ pub struct PortalConfig {
 }
 
 fn default_portal_domain() -> String {
-    "didicafe.local".to_string()
+    "wifi.didicafe".to_string()
 }
 
 fn default_admin_domain() -> String {
-    "admin.didicafe.local".to_string()
+    "admin.wifi.didicafe".to_string()
 }
 
 fn default_cafe_name() -> String {

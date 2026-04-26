@@ -235,22 +235,27 @@ iw dev | grep -E "Interface|ssid"   # must show phy0-ap0 and phy1-ap0
 
 ### 4.3 DHCP/DNS — option 114 + local domain
 
+> **Why not `.local`?** iOS resolves `.local` exclusively via mDNS (Bonjour),
+> not unicast DNS. Without an mDNS responder on the box, iPhones can't reach
+> `*.local` and the captive sheet never opens. We use `wifi.didicafe`
+> (a fictitious TLD) so all OSes resolve it via the standard DNS path.
+
 ```sh
 # RFC 8910 — advertise the CAPPORT API URL
 uci -q delete dhcp.lan.dhcp_option
-uci add_list dhcp.lan.dhcp_option='114,http://didicafe.local:8080/api/captive'
+uci add_list dhcp.lan.dhcp_option='114,http://wifi.didicafe:8080/api/captive'
 
 # IPv4-only DHCP to keep things simple at first
 uci set dhcp.lan.dhcpv6='disabled'
 uci set dhcp.lan.ra='disabled'
 
-# Resolve didicafe.local + admin.didicafe.local locally
+# Resolve wifi.didicafe + admin.wifi.didicafe locally
 uci add dhcp domain
-uci set dhcp.@domain[-1].name='didicafe.local'
+uci set dhcp.@domain[-1].name='wifi.didicafe'
 uci set dhcp.@domain[-1].ip='10.10.0.1'
 
 uci add dhcp domain
-uci set dhcp.@domain[-1].name='admin.didicafe.local'
+uci set dhcp.@domain[-1].name='admin.wifi.didicafe'
 uci set dhcp.@domain[-1].ip='10.10.0.1'
 
 uci commit dhcp
@@ -306,7 +311,7 @@ ssh root@${BOARD} "chmod +x /usr/local/bin/didicafe && ln -sf /opt/didicafe/stat
 On the Mac:
 ```sh
 cd ~/Github/didicafe
-./scripts/gen-certs.sh certs didicafe.local admin.didicafe.local 10.10.0.1
+./scripts/gen-certs.sh certs wifi.didicafe admin.wifi.didicafe 10.10.0.1
 ```
 
 Push the server cert + key to the board:
@@ -343,8 +348,8 @@ username = "admin"
 password_hash = "$argon2id$v=19$m=19456,t=2,p=1$...REPLACE_ME..."
 
 [portal]
-domain = "didicafe.local"
-admin_domain = "admin.didicafe.local"
+domain = "wifi.didicafe"
+admin_domain = "admin.wifi.didicafe"
 cafe_name = "DidiCafe"
 theme_color = "#b45309"
 
@@ -457,7 +462,7 @@ HTTPS admin) and the nftables table populated.
 2. The captive sheet pops up automatically (Apple/Android CPD probe is
    DNATed to didicafe).
 3. To bootstrap as the manager, dismiss the captive sheet ("Use without
-   internet"), open Chrome/Firefox, go to **`https://admin.didicafe.local`**
+   internet"), open Chrome/Firefox, go to **`https://admin.wifi.didicafe`**
    → admin login.
 4. Login with `admin` + your password. didicafe authorizes your MAC for 7
    days, you now have internet **and** the admin GUI.
@@ -593,7 +598,7 @@ Once §1–8 are done and §9 (Tailscale) gives you remote access:
 4. **Install `certs/ca.pem`** on the manager's phone
 5. **Set up daily DB backup** to your tailnet (rsync over Tailscale SSH)
 6. **Document** the manager-side procedure: "WiFi name = DidiCafe,
-   admin URL = `https://admin.didicafe.local`, your password is X,
+   admin URL = `https://admin.wifi.didicafe`, your password is X,
    if anything goes wrong call me first"
 7. Box arrives at the café, plug ethernet to Starlink router and USB-C
    to the wall PSU (12 V PD), done. The first boot takes ~10 s.

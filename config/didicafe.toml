@@ -21,8 +21,8 @@ password_hash = "$argon2id$v=19$m=19456,t=2,p=1$UmHhUjxRtY3c7xV5M6xDaA$Vwia8Sfxf
 # allowed_networks = ["10.10.0.0/24"]
 
 [portal]
-domain = "didicafe.local"
-admin_domain = "admin.didicafe.local"
+domain = "wifi.didicafe"
+admin_domain = "admin.wifi.didicafe"
 cafe_name = "DidiCafe"
 # welcome_message = "Tongasoa! Bienvenue!"
 theme_color = "#b45309"

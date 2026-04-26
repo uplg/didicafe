@@ -40,6 +40,14 @@ const TRANSLATIONS = {
     "expired.hint": "Mankanesa any amin'ny mpapiasa raha hividy code vaovao.",
     "expired.new_token": "Hampiditra code vaovao",
 
+    // -- Status (public session check) --
+    "status.title": "Ny session-nao",
+    "status.remaining": "Fotoana sisa",
+    "status.hint": "Avereno ny pejy hijery ny fotoana ankehitriny.",
+    "status.no_session": "Tsy misy session mandeha",
+    "status.no_session_hint": "Mila code ianao mba ahafahana mampiasa ny internet.",
+    "status.connect": "Hampiditra code",
+
     // -- Admin Nav --
     "admin.nav.dashboard": "Dashboard",
     "admin.nav.audit": "Journal",
@@ -233,6 +241,7 @@ const TRANSLATIONS = {
     "portal.privacy": "Mifandray, ny MAC-nao sy IP-nao dia voatahirizy mandritra ny session-nao.",
     "portal.privacy_link": "Hahalala bebe kokoa",
     "portal.see_plans": "Jereo ny drafitra sy ny vidiny",
+    "portal.check_status": "Jereo ny session-nao",
 
     // -- Plans (public) --
     "plans.title": "Drafitra WiFi",
@@ -271,6 +280,14 @@ const TRANSLATIONS = {
     "expired.message": "Votre temps d'accès internet est terminé.",
     "expired.hint": "Rendez-vous à l'accueil pour acheter un nouveau code.",
     "expired.new_token": "Entrer un nouveau code",
+
+    // -- Status (public session check) --
+    "status.title": "Votre session",
+    "status.remaining": "Temps restant",
+    "status.hint": "Rechargez la page pour mettre à jour le compteur.",
+    "status.no_session": "Aucune session active",
+    "status.no_session_hint": "Il vous faut un code pour accéder à internet.",
+    "status.connect": "Entrer un code",
 
     // -- Admin Nav --
     "admin.nav.dashboard": "Tableau de bord",
@@ -465,6 +482,7 @@ const TRANSLATIONS = {
     "portal.privacy": "En vous connectant, votre MAC et IP sont stockés pour la durée de votre session.",
     "portal.privacy_link": "En savoir plus",
     "portal.see_plans": "Voir les forfaits et tarifs",
+    "portal.check_status": "Voir ma session",
 
     // -- Plans (public) --
     "plans.title": "Forfaits WiFi",
@@ -503,6 +521,14 @@ const TRANSLATIONS = {
     "expired.message": "Your internet access time has ended.",
     "expired.hint": "Please visit the front desk for a new access code.",
     "expired.new_token": "Enter New Code",
+
+    // -- Status (public session check) --
+    "status.title": "Your session",
+    "status.remaining": "Time remaining",
+    "status.hint": "Refresh the page to update the counter.",
+    "status.no_session": "No active session",
+    "status.no_session_hint": "You need an access code to use the internet.",
+    "status.connect": "Enter a code",
 
     // -- Admin Nav --
     "admin.nav.dashboard": "Dashboard",
@@ -697,6 +723,7 @@ const TRANSLATIONS = {
     "portal.privacy": "By connecting, your MAC and IP are stored for the duration of your session.",
     "portal.privacy_link": "Learn more",
     "portal.see_plans": "View plans and pricing",
+    "portal.check_status": "Check my session",
 
     // -- Plans (public) --
     "plans.title": "WiFi Plans",

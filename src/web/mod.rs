@@ -124,11 +124,15 @@ async fn security_headers(request: Request, next: Next) -> Response {
             HeaderValue::from_static("no-cache"),
         );
     } else if is_static {
-        // Cache static assets (CSS, JS, images) for 1 hour.
-        // These rarely change and caching reduces load on the embedded router.
+        // Browser may cache, but MUST revalidate every request. ServeDir sets
+        // `Last-Modified` from the file mtime, so revalidation is a cheap
+        // conditional GET that returns 304 when nothing changed. Without this,
+        // bumped JS (e.g. new i18n keys) wouldn't be picked up until the cache
+        // TTL expired, leaving raw `data-i18n` keys on screen for up to an hour
+        // after a deploy.
         headers.insert(
             "Cache-Control",
-            HeaderValue::from_static("public, max-age=3600"),
+            HeaderValue::from_static("public, no-cache"),
         );
     }
 

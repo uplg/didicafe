@@ -142,7 +142,7 @@ See [`INSTALL.md`](./INSTALL.md) for the full procedure. Outline:
 2. Download OpenWrt 25.12.2 mediatek/filogic eMMC artefacts
 3. `dd` preloader → mmcblk0boot0, FIP → p3, sysupgrade ITB → p5, then `mmc bootpart enable 1 1`
 4. Switch hardware NAND → eMMC, repower → fresh OpenWrt 25.12.2
-5. UCI: LAN 10.10.0.1/24, WiFi DidiCafe (2.4 + 5 GHz), DHCP option 114, DNS for `didicafe.local` + `admin.didicafe.local`
+5. UCI: LAN 10.10.0.1/24, WiFi DidiCafe (2.4 + 5 GHz), DHCP option 114, DNS for `wifi.didicafe` + `admin.wifi.didicafe`
 6. Generate TLS certs via `scripts/gen-certs.sh`, push server cert + key to board
 7. Drop `didicafe` binary in `/usr/local/bin/`, config in `/etc/didicafe/`, statics in `/opt/didicafe/`
 8. Add nftables fragment `/etc/nftables.didicafe.nft` (DNAT HTTP unauth → portal, force DNS local, filter forward)
@@ -258,7 +258,7 @@ sequenceDiagram
     C->>D: POST /portal/auth {token: "ABC123"}
     D->>D: Validate token in SQLite
     D->>NFT: nft add element inet filter auth_macs { AA:BB:CC:DD:EE:FF timeout 3600s }
-    D-->>C: HTTP 302 -> http://success.didicafe.local
+    D-->>C: HTTP 302 -> http://success.wifi.didicafe
 
     Note over C: Client is now authenticated
     C->>NFT: Any outbound traffic
@@ -509,7 +509,8 @@ stateDiagram-v2
 | `POST` | `/portal/auth` | Validate token, create session |
 | `GET` | `/portal/success` | "You're connected" confirmation |
 | `GET` | `/portal/expired` | "Session expired" page |
-| `GET` | `/portal/status` | Current session status (time remaining) |
+| `GET` | `/portal/status` | Public session-status page (countdown, or "no session" CTA) |
+| `GET` | `/portal/status.json` | JSON: `{connected, remaining_seconds}` — polled by countdown.js |
 | `GET` | `/api/captive` | RFC 8908 Captive Portal API (`application/captive+json`) |
 
 #### Admin Endpoints (protected, served on port 8080, path-based auth)
@@ -599,8 +600,8 @@ URL-redirect CPD is a legacy technique. Modern clients (iOS 14+, macOS 11+, Wind
 ```json
 {
   "captive": true,
-  "user-portal-url": "http://didicafe.local:8080/portal",
-  "venue-info-url": "http://didicafe.local:8080/portal/plans",
+  "user-portal-url": "http://wifi.didicafe:8080/portal",
+  "venue-info-url": "http://wifi.didicafe:8080/portal/plans",
   "can-extend-session": false
 }
 ```
@@ -610,8 +611,8 @@ When the client has an active session, the response is:
 ```json
 {
   "captive": false,
-  "user-portal-url": "http://didicafe.local:8080/portal",
-  "venue-info-url": "http://didicafe.local:8080/portal/plans",
+  "user-portal-url": "http://wifi.didicafe:8080/portal",
+  "venue-info-url": "http://wifi.didicafe:8080/portal/plans",
   "can-extend-session": false,
   "seconds-remaining": 1742
 }
@@ -622,7 +623,7 @@ The handler identifies the client by ARP-resolving its source IP to a MAC, then 
 **RFC 8908 §4 — Captive-Portal HTTP header.** All portal-side responses (HTML pages, CPD redirects, the JSON API itself) carry the header
 
 ```
-Captive-Portal: <http://didicafe.local:8080/api/captive>
+Captive-Portal: <http://wifi.didicafe:8080/api/captive>
 ```
 
 so any HTTP exchange between the client and the portal advertises where the API lives. The header is added by middleware on `portal_router` and `combined_router`; it is **not** emitted on the admin HTTPS listener (admins are not captive clients).
@@ -845,9 +846,9 @@ server=1.1.1.1
 
 # RFC 8910: advertise the CAPPORT JSON API URL to modern clients.
 # MUST point to the JSON API (RFC 8908), not the HTML portal page.
-dhcp-option=114,http://didicafe.local:8080/api/captive
+dhcp-option=114,http://wifi.didicafe:8080/api/captive
 # DHCPv6 equivalent (option 103) — uncomment when IPv6 is enabled on the LAN.
-# dhcp-option=option6:103,http://didicafe.local:8080/api/captive
+# dhcp-option=option6:103,http://wifi.didicafe:8080/api/captive
 
 # Log DHCP leases (useful for debugging)
 log-dhcp
