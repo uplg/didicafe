@@ -97,10 +97,18 @@ const SESSION_LIVE: &str =
      FROM session s JOIN token t ON s.token_id = t.id JOIN plan p ON t.plan_id = p.id \
      WHERE s.status = 'active' AND s.expires_at > datetime('now')";
 
+/// Live session lookup by MAC. We filter on `expires_at > now` AND order by id
+/// DESC LIMIT 1 because there is a transient window after a session expires
+/// where the row is still `status='active'` (the cleanup ticker hasn't run yet)
+/// and the user may have already redeemed a fresh token. Without these guards,
+/// SQLite would return the older expired-by-clock row in rowid order, and the
+/// portal would treat the user as having no live session.
 const SESSION_BY_MAC: &str =
     "SELECT s.id, s.token_id, s.mac_address, s.ip_address, s.started_at, s.expires_at, s.status, \
             t.code as token_code, t.name as token_name, p.name as plan_name \
-     FROM session s JOIN token t ON s.token_id = t.id JOIN plan p ON t.plan_id = p.id WHERE s.mac_address = ?1 AND s.status = 'active'";
+     FROM session s JOIN token t ON s.token_id = t.id JOIN plan p ON t.plan_id = p.id \
+     WHERE s.mac_address = ?1 AND s.status = 'active' AND s.expires_at > datetime('now') \
+     ORDER BY s.id DESC LIMIT 1";
 
 const SESSION_BY_ID: &str =
     "SELECT s.id, s.token_id, s.mac_address, s.ip_address, s.started_at, s.expires_at, s.status, \
@@ -379,6 +387,15 @@ impl Database {
 
     // -- Sessions --
 
+    /// Insert a new session row, transactionally disconnecting any prior
+    /// `active` session for the same MAC.
+    ///
+    /// Without the disconnect step we get duplicates: when a session expires
+    /// at the firewall (nftables timeout fires immediately) but the DB row is
+    /// still `status='active'` waiting for the cleanup ticker (~30–40 s window),
+    /// a fresh token redeem would INSERT a second `active` row for the same
+    /// MAC. `get_session_by_mac` would then ramble between them and the user's
+    /// success/status pages would return the stale row instead of the new one.
     pub async fn create_session(
         &self,
         token_id: i64,
@@ -386,6 +403,16 @@ impl Database {
         ip: &str,
         expires_at: &str,
     ) -> Result<i64> {
+        let mut tx = self.pool.begin().await?;
+
+        sqlx::query(
+            "UPDATE session SET status = 'disconnected' \
+             WHERE mac_address = ?1 AND status = 'active'",
+        )
+        .bind(mac)
+        .execute(&mut *tx)
+        .await?;
+
         let result = sqlx::query(
             "INSERT INTO session (token_id, mac_address, ip_address, started_at, expires_at, status) \
              VALUES (?1, ?2, ?3, datetime('now'), ?4, 'active')",
@@ -394,8 +421,10 @@ impl Database {
         .bind(mac)
         .bind(ip)
         .bind(expires_at)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
+
+        tx.commit().await?;
         Ok(result.last_insert_rowid())
     }
 
@@ -850,6 +879,84 @@ mod tests {
         db.expire_session(session_id).await.unwrap();
         let session = db.get_session_by_mac("CC:DD:EE:FF:00:11").await.unwrap();
         assert!(session.is_none()); // get_session_by_mac only returns active
+    }
+
+    /// Re-redeeming a token after expiry must not leave two `active` rows for
+    /// the same MAC. Reproduces the bug where `get_session_by_mac` would return
+    /// the stale row (older rowid, `expires_at` in the past) instead of the
+    /// freshly-created live one.
+    #[tokio::test]
+    async fn test_create_session_disconnects_prior_active_row_same_mac() {
+        let db = test_db().await;
+        let plan_id = db.create_plan("1h", 60, 1000).await.unwrap();
+        let mac = "AA:BB:CC:DD:EE:FF";
+
+        // Old session: still `active` in DB, but expired by clock (mimics the
+        // 30–40 s window between nftables timeout and the DB cleanup ticker).
+        let stale_token = db.create_token("DIDI-STAL-EOLD", None, plan_id).await.unwrap();
+        let stale_id = db
+            .create_session(stale_token, mac, "10.10.0.5", "2020-01-01 00:00:00")
+            .await
+            .unwrap();
+
+        // User redeems a fresh token while the stale row is still 'active'.
+        let fresh_token = db.create_token("DIDI-FRSH-NEWX", None, plan_id).await.unwrap();
+        let fresh_id = db
+            .create_session(fresh_token, mac, "10.10.0.5", "2099-12-31 23:59:59")
+            .await
+            .unwrap();
+        assert_ne!(stale_id, fresh_id);
+
+        // Only the fresh row should be `active` after the second create_session.
+        let active = db.get_active_sessions().await.unwrap();
+        let active_for_mac: Vec<_> = active.iter().filter(|s| s.mac_address == mac).collect();
+        assert_eq!(active_for_mac.len(), 1, "expected exactly one active row for MAC");
+        assert_eq!(active_for_mac[0].id, fresh_id);
+
+        // get_session_by_mac must surface the fresh row.
+        let by_mac = db.get_session_by_mac(mac).await.unwrap().unwrap();
+        assert_eq!(by_mac.id, fresh_id);
+        assert!(by_mac.remaining_seconds() > 0);
+    }
+
+    /// Defense-in-depth: even if two `active` rows somehow coexist (e.g. a
+    /// pre-fix data state restored from backup), `get_session_by_mac` must
+    /// return only the live one — not the stale one with `expires_at` in
+    /// the past.
+    #[tokio::test]
+    async fn test_get_session_by_mac_filters_past_expires_at() {
+        let db = test_db().await;
+        let plan_id = db.create_plan("1h", 60, 1000).await.unwrap();
+        let mac = "BB:CC:DD:EE:FF:00";
+
+        // Bypass create_session's transactional cleanup by INSERTing rows
+        // directly — simulates a corrupted state where two `active` rows
+        // exist for the same MAC.
+        let t1 = db.create_token("DIDI-TWOA-CTV1", None, plan_id).await.unwrap();
+        let t2 = db.create_token("DIDI-TWOA-CTV2", None, plan_id).await.unwrap();
+
+        sqlx::query(
+            "INSERT INTO session (token_id, mac_address, ip_address, started_at, expires_at, status) \
+             VALUES (?1, ?2, '10.0.0.1', datetime('now'), '2020-01-01 00:00:00', 'active')",
+        )
+        .bind(t1)
+        .bind(mac)
+        .execute(&db.pool)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO session (token_id, mac_address, ip_address, started_at, expires_at, status) \
+             VALUES (?1, ?2, '10.0.0.1', datetime('now'), '2099-12-31 23:59:59', 'active')",
+        )
+        .bind(t2)
+        .bind(mac)
+        .execute(&db.pool)
+        .await
+        .unwrap();
+
+        let by_mac = db.get_session_by_mac(mac).await.unwrap().unwrap();
+        assert_eq!(by_mac.token_id, t2, "expected the row whose expires_at is in the future");
     }
 
     // -- Session remaining_seconds --
