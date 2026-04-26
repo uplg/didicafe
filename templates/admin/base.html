@@ -16,7 +16,12 @@
             <div class="nav-brand-icon" aria-hidden="true">{{ cafe_name.chars().next().unwrap_or('D') }}</div>
             <span>{{ cafe_name }}</span>
         </div>
-        <ul class="nav-links">
+        <button type="button" class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="admin-nav-links">
+            <span class="nav-toggle-bar"></span>
+            <span class="nav-toggle-bar"></span>
+            <span class="nav-toggle-bar"></span>
+        </button>
+        <ul class="nav-links" id="admin-nav-links">
             <li><a href="/admin"{% if current_page == "dashboard" %} class="active"{% endif %} data-i18n="admin.nav.dashboard"></a></li>
             <li><a href="/admin/manage"{% if current_page == "manage" %} class="active"{% endif %} data-i18n="admin.manage.title"></a></li>
             <li><a href="/admin/audit"{% if current_page == "audit" %} class="active"{% endif %} data-i18n="admin.nav.audit"></a></li>
