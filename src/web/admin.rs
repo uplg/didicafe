@@ -416,7 +416,7 @@ async fn dashboard(
 ) -> Result<impl IntoResponse, AppError> {
     let stats = state.db.get_daily_stats().await
         .map_err(AppError::Internal)?;
-    let active_sessions = state.db.get_active_sessions().await
+    let active_sessions = state.db.get_live_sessions().await
         .map_err(AppError::Internal)?;
     let ctx = admin_ctx(&state).await;
 
@@ -597,7 +597,7 @@ async fn load_manage_data(
         status_filter: status_filter.to_string(),
     };
     let plans = state.db.list_plans().await.map_err(AppError::Internal)?;
-    let sessions = state.db.get_active_sessions().await.map_err(AppError::Internal)?;
+    let sessions = state.db.get_live_sessions().await.map_err(AppError::Internal)?;
     Ok((token_page, plans, sessions))
 }
 

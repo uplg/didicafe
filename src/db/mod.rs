@@ -10,6 +10,18 @@ use sqlx::sqlite::SqlitePoolOptions;
 // All token queries use the same column list and JOIN. All session queries use
 // the same column list and JOIN. If the schema changes, update the constants
 // below in one place.
+//
+// Effective-status reconciliation: a token or session marked `active` whose
+// `expires_at` is past is *effectively* expired even though the DB row hasn't
+// been transitioned yet (the cleanup ticker runs on a delay). Admin-facing
+// list queries reflect that reconciliation in two places:
+//   1. The WHERE clause filters rows by effective status (so an expired-by-
+//      clock row falls out of "active"/"current" and into "expired").
+//   2. The SELECT rewrites `status` to 'expired' for those rows so the
+//      template's status badge matches what the user sees.
+// Single-row lookups (TOKEN_BY_CODE / TOKEN_BY_ID) keep the raw status, since
+// they feed enforcement logic (redemption, revocation) which acts on the
+// stored state, not on the displayed state.
 
 const TOKEN_BY_CODE: &str =
     "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
@@ -22,30 +34,68 @@ const TOKEN_BY_ID: &str =
      FROM token t JOIN plan p ON t.plan_id = p.id WHERE t.id = ?1";
 
 const TOKEN_LIST: &str =
-    "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
-            t.redeemed_at, t.expires_at, p.duration_minutes, p.name as plan_name \
+    "SELECT t.id, t.code, t.name, t.plan_id, \
+            CASE WHEN t.status = 'active' AND t.expires_at <= datetime('now') \
+                 THEN 'expired' ELSE t.status END as status, \
+            t.created_at, t.redeemed_at, t.expires_at, p.duration_minutes, p.name as plan_name \
      FROM token t JOIN plan p ON t.plan_id = p.id ORDER BY t.created_at DESC";
 
+/// Filters by raw status (used for 'unused' / 'revoked' — independent of expires_at).
 const TOKEN_LIST_BY_STATUS: &str =
     "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
             t.redeemed_at, t.expires_at, p.duration_minutes, p.name as plan_name \
      FROM token t JOIN plan p ON t.plan_id = p.id WHERE t.status = ?1 ORDER BY t.created_at DESC";
 
-/// Tokens that are unused or active (the default admin view — what matters day-to-day).
+/// Effectively-active tokens: redeemed and not yet past expiration.
+const TOKEN_LIST_ACTIVE: &str =
+    "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
+            t.redeemed_at, t.expires_at, p.duration_minutes, p.name as plan_name \
+     FROM token t JOIN plan p ON t.plan_id = p.id \
+     WHERE t.status = 'active' AND t.expires_at > datetime('now') ORDER BY t.created_at DESC";
+
+/// Effectively-expired tokens: explicitly expired, OR active-but-past-expiration.
+const TOKEN_LIST_EXPIRED: &str =
+    "SELECT t.id, t.code, t.name, t.plan_id, 'expired' as status, t.created_at, \
+            t.redeemed_at, t.expires_at, p.duration_minutes, p.name as plan_name \
+     FROM token t JOIN plan p ON t.plan_id = p.id \
+     WHERE t.status = 'expired' \
+        OR (t.status = 'active' AND t.expires_at <= datetime('now')) \
+     ORDER BY t.created_at DESC";
+
+/// Tokens that are unused or effectively active (the default admin view — what matters day-to-day).
 const TOKEN_LIST_CURRENT: &str =
     "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
             t.redeemed_at, t.expires_at, p.duration_minutes, p.name as plan_name \
      FROM token t JOIN plan p ON t.plan_id = p.id \
-     WHERE t.status IN ('unused', 'active') ORDER BY t.created_at DESC";
+     WHERE t.status = 'unused' \
+        OR (t.status = 'active' AND t.expires_at > datetime('now')) \
+     ORDER BY t.created_at DESC";
 
 const TOKEN_COUNT_ALL: &str = "SELECT COUNT(*) FROM token";
 const TOKEN_COUNT_BY_STATUS: &str = "SELECT COUNT(*) FROM token WHERE status = ?1";
-const TOKEN_COUNT_CURRENT: &str = "SELECT COUNT(*) FROM token WHERE status IN ('unused', 'active')";
+const TOKEN_COUNT_ACTIVE: &str =
+    "SELECT COUNT(*) FROM token WHERE status = 'active' AND expires_at > datetime('now')";
+const TOKEN_COUNT_EXPIRED: &str =
+    "SELECT COUNT(*) FROM token \
+     WHERE status = 'expired' OR (status = 'active' AND expires_at <= datetime('now'))";
+const TOKEN_COUNT_CURRENT: &str =
+    "SELECT COUNT(*) FROM token \
+     WHERE status = 'unused' OR (status = 'active' AND expires_at > datetime('now'))";
 
 const SESSION_ACTIVE: &str =
     "SELECT s.id, s.token_id, s.mac_address, s.ip_address, s.started_at, s.expires_at, s.status, \
             t.code as token_code, t.name as token_name, p.name as plan_name \
      FROM session s JOIN token t ON s.token_id = t.id JOIN plan p ON t.plan_id = p.id WHERE s.status = 'active'";
+
+/// Sessions that are admin-visible "live": still active and not yet past expiration.
+/// The cleanup ticker uses `SESSION_ACTIVE` (raw) — it needs to *find* expired-
+/// but-uncleaned rows in order to clean them up. The admin uses this — it must
+/// not show users who are already disconnected at the firewall.
+const SESSION_LIVE: &str =
+    "SELECT s.id, s.token_id, s.mac_address, s.ip_address, s.started_at, s.expires_at, s.status, \
+            t.code as token_code, t.name as token_name, p.name as plan_name \
+     FROM session s JOIN token t ON s.token_id = t.id JOIN plan p ON t.plan_id = p.id \
+     WHERE s.status = 'active' AND s.expires_at > datetime('now')";
 
 const SESSION_BY_MAC: &str =
     "SELECT s.id, s.token_id, s.mac_address, s.ip_address, s.started_at, s.expires_at, s.status, \
@@ -280,6 +330,8 @@ impl Database {
 
         let (count_query, list_query, bind_status) = match status_filter {
             Some("current") => (TOKEN_COUNT_CURRENT, TOKEN_LIST_CURRENT, None),
+            Some("active") => (TOKEN_COUNT_ACTIVE, TOKEN_LIST_ACTIVE, None),
+            Some("expired") => (TOKEN_COUNT_EXPIRED, TOKEN_LIST_EXPIRED, None),
             Some(status) => (TOKEN_COUNT_BY_STATUS, TOKEN_LIST_BY_STATUS, Some(status)),
             None => (TOKEN_COUNT_ALL, TOKEN_LIST, None),
         };
@@ -347,8 +399,21 @@ impl Database {
         Ok(result.last_insert_rowid())
     }
 
+    /// Sessions whose row status is `active` — used by the cleanup ticker to find
+    /// rows that need transitioning to `expired`. Includes rows whose `expires_at`
+    /// is already in the past.
     pub async fn get_active_sessions(&self) -> Result<Vec<Session>> {
         let sessions = sqlx::query_as::<_, Session>(SESSION_ACTIVE)
+            .fetch_all(&self.pool)
+            .await?;
+        Ok(sessions)
+    }
+
+    /// Sessions that are still live from the user's perspective: `active` AND not
+    /// yet past `expires_at`. Used by the admin UI so disconnected-but-uncleaned
+    /// sessions don't appear as "active".
+    pub async fn get_live_sessions(&self) -> Result<Vec<Session>> {
+        let sessions = sqlx::query_as::<_, Session>(SESSION_LIVE)
             .fetch_all(&self.pool)
             .await?;
         Ok(sessions)
@@ -542,10 +607,12 @@ impl Database {
         .fetch_one(&self.pool)
         .await?;
 
-        let (active_sessions,): (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM session WHERE status = 'active'")
-                .fetch_one(&self.pool)
-                .await?;
+        let (active_sessions,): (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM session \
+             WHERE status = 'active' AND expires_at > datetime('now')",
+        )
+        .fetch_one(&self.pool)
+        .await?;
 
         let (revenue,): (i64,) = sqlx::query_as(
             "SELECT COALESCE(SUM(p.price_ariary), 0) \
@@ -1075,6 +1142,103 @@ mod tests {
         let (expired, total) = db.list_tokens_paged(Some("expired"), 1, 50).await.unwrap();
         assert_eq!(total, 0);
         assert!(expired.is_empty());
+    }
+
+    // -- Effective expiration (admin reconciliation) --
+
+    /// A session whose row is still `status='active'` but whose `expires_at` is
+    /// in the past must be hidden from the admin's "active" list (the user is
+    /// already disconnected at the firewall) — but the cleanup ticker must
+    /// still see it via `get_active_sessions()` so it can transition the row.
+    #[tokio::test]
+    async fn test_live_sessions_excludes_past_expires_at() {
+        let db = test_db().await;
+        let plan_id = db.create_plan("1h", 60, 1000).await.unwrap();
+        let live_tok = db.create_token("LIVE-AAAA-AAAA", None, plan_id).await.unwrap();
+        let dead_tok = db.create_token("DEAD-BBBB-BBBB", None, plan_id).await.unwrap();
+
+        db.create_session(live_tok, "AA:AA:AA:AA:AA:AA", "10.0.0.1", "2099-12-31 23:59:59")
+            .await
+            .unwrap();
+        db.create_session(dead_tok, "BB:BB:BB:BB:BB:BB", "10.0.0.2", "2020-01-01 00:00:00")
+            .await
+            .unwrap();
+
+        // Cleanup ticker sees both rows (it needs to transition the dead one).
+        let active = db.get_active_sessions().await.unwrap();
+        assert_eq!(active.len(), 2);
+
+        // Admin sees only the live one.
+        let live = db.get_live_sessions().await.unwrap();
+        assert_eq!(live.len(), 1);
+        assert_eq!(live[0].mac_address, "AA:AA:AA:AA:AA:AA");
+    }
+
+    /// Daily stats' `active_sessions` count must match what the admin sees as
+    /// live, not the raw DB row count.
+    #[tokio::test]
+    async fn test_daily_stats_excludes_past_expires_at() {
+        let db = test_db().await;
+        let plan_id = db.create_plan("1h", 60, 1000).await.unwrap();
+        let live_tok = db.create_token("LIVE-CCCC-CCCC", None, plan_id).await.unwrap();
+        let dead_tok = db.create_token("DEAD-DDDD-DDDD", None, plan_id).await.unwrap();
+
+        db.create_session(live_tok, "AA:AA:AA:AA:AA:AA", "10.0.0.1", "2099-12-31 23:59:59")
+            .await
+            .unwrap();
+        db.create_session(dead_tok, "BB:BB:BB:BB:BB:BB", "10.0.0.2", "2020-01-01 00:00:00")
+            .await
+            .unwrap();
+
+        let stats = db.get_daily_stats().await.unwrap();
+        assert_eq!(stats.active_sessions, 1);
+    }
+
+    /// A token with `status='active'` but past `expires_at` is *effectively*
+    /// expired: it must drop out of "current" and "active" filters, appear in
+    /// "expired", and display as 'expired' in the unfiltered "all" view.
+    #[tokio::test]
+    async fn test_token_filters_use_effective_expiration() {
+        let db = test_db().await;
+        let plan_id = db.create_plan("1h", 60, 1000).await.unwrap();
+
+        db.create_token("UNUSED-0001", None, plan_id).await.unwrap();
+
+        let live_id = db.create_token("LIVE-AAAA-AAAA", None, plan_id).await.unwrap();
+        db.redeem_token(live_id, "2099-12-31 23:59:59").await.unwrap();
+
+        // Effectively expired: redeemed in the past, ticker hasn't run yet.
+        let stale_id = db.create_token("STALE-BBBB-BB", None, plan_id).await.unwrap();
+        db.redeem_token(stale_id, "2020-01-01 00:00:00").await.unwrap();
+
+        // Already-transitioned expired token (ticker did run).
+        let cleaned_id = db.create_token("CLEAN-CCCC-CC", None, plan_id).await.unwrap();
+        db.redeem_token(cleaned_id, "2020-01-01 00:00:00").await.unwrap();
+        db.expire_token(cleaned_id).await.unwrap();
+
+        // "current" = unused + effectively-active → 2 (UNUSED + LIVE)
+        let (cur, total) = db.list_tokens_paged(Some("current"), 1, 50).await.unwrap();
+        assert_eq!(total, 2);
+        assert!(cur.iter().any(|t| t.code == "UNUSED-0001"));
+        assert!(cur.iter().any(|t| t.code == "LIVE-AAAA-AAAA"));
+
+        // "active" = effectively-active only → 1 (LIVE)
+        let (act, total) = db.list_tokens_paged(Some("active"), 1, 50).await.unwrap();
+        assert_eq!(total, 1);
+        assert_eq!(act[0].code, "LIVE-AAAA-AAAA");
+
+        // "expired" = explicitly expired OR active-but-past → 2 (STALE + CLEAN)
+        let (exp, total) = db.list_tokens_paged(Some("expired"), 1, 50).await.unwrap();
+        assert_eq!(total, 2);
+        for t in &exp {
+            assert_eq!(t.status, TokenStatus::Expired);
+        }
+
+        // "all" view: STALE row's displayed status is rewritten to 'expired'.
+        let (all, total) = db.list_tokens_paged(None, 1, 50).await.unwrap();
+        assert_eq!(total, 4);
+        let stale = all.iter().find(|t| t.code == "STALE-BBBB-BB").unwrap();
+        assert_eq!(stale.status, TokenStatus::Expired);
     }
 
     // -- Paginated audit log --
