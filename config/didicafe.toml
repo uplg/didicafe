@@ -1,11 +1,15 @@
 [server]
 listen = "10.10.0.1"
 port = 8080
-# Dual-band: list both WiFi interfaces. Use "br-lan" if bridged.
-interfaces = ["wlan0", "wlan1"]
+# OpenWrt: bridge LAN side. Both WiFi interfaces (phy0-ap0 / phy1-ap0)
+# are auto-bridged into br-lan via UCI wireless config.
+interfaces = "br-lan"
 
 [database]
-path = "/var/lib/didicafe/didicafe.db"
+# OpenWrt: /var/lib is a symlink to /tmp (tmpfs) — wiped on every reboot!
+# Use /srv (f2fs overlay, persistent) for the SQLite database. Make sure
+# /etc/sysupgrade.conf includes /srv/didicafe/ so the DB survives sysupgrade.
+path = "/srv/didicafe/didicafe.db"
 
 [admin]
 username = "admin"

@@ -195,10 +195,12 @@ a:hover {
 code {
   font-family: var(--font-mono);
   font-size: 0.85em;
-  background: var(--c-primary-50);
-  padding: 0.1em 0.4em;
+  background: var(--c-surface-raised);
+  color: var(--c-text);
+  padding: 0.15em 0.45em;
   border-radius: var(--r-sm);
   border: 1px solid var(--c-border);
+  font-weight: 600;
 }
 
 /* --- Layout --- */
@@ -403,7 +405,8 @@ fieldset.settings-fieldset {
   border-radius: var(--r-lg);
   padding: var(--s-lg);
   margin-bottom: var(--s-lg);
-  background: var(--c-primary-50);
+  background: var(--c-surface-raised);
+  box-shadow: var(--shadow-sm);
 }
 
 fieldset.settings-fieldset legend {
@@ -807,14 +810,20 @@ th, td {
 
 th {
   font-weight: 700;
-  color: var(--c-text-muted);
+  color: var(--c-text);
   font-size: 0.65rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   white-space: nowrap;
-  background: var(--c-primary-50);
+  background: var(--c-surface-raised);
+  border-bottom: 2px solid var(--c-border);
   position: sticky;
   top: 0;
+}
+
+td {
+  background: var(--c-surface);
+  color: var(--c-text);
 }
 
 tr:last-child td {
@@ -826,12 +835,13 @@ tr {
 }
 
 tr:hover td {
-  background: var(--c-primary-50);
+  background: var(--c-primary-light);
 }
 
 /* --- Token List (generated tokens display) --- */
 .token-list {
-  background: var(--c-primary-50);
+  background: var(--c-surface-raised);
+  color: var(--c-text);
   border: 1px solid var(--c-border);
   padding: var(--s-md);
   border-radius: var(--r-md);

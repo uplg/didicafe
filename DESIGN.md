@@ -55,7 +55,7 @@ Source: [AliExpress](https://fr.aliexpress.com/item/1005005882682378.html) -- ~1
 | USB | 1x USB 2.0 |
 | Dimensions | 65x65mm, 100g |
 | Power | 12V, USB-C PD |
-| OS | Alpine Linux (primary), OpenWrt on NAND (recovery) |
+| OS | OpenWrt 25.12.2 mediatek/filogic on eMMC (primary), factory OpenWrt 21.02 on NAND (recovery) |
 | Price | ~126 EUR |
 
 **Why this board:**
@@ -68,86 +68,86 @@ Source: [AliExpress](https://fr.aliexpress.com/item/1005005882682378.html) -- ~1
 - **OpenWrt first-class support** -- battle-tested networking stack
 - **M.2 slots** -- future expansion (4G/5G modem, NVMe SSD) if needed
 
-### OS Strategy: Alpine Linux
+### OS Strategy: OpenWrt 25.12.2 (mainline)
 
-Alpine Linux is the ideal OS for this board. It's built on the same foundations as OpenWrt (musl libc + busybox) but with a real package manager (`apk`), a proper init system (OpenRC), and access to a full package repository. It's essentially the "grown-up OpenWrt" without the bloat of Debian.
+OpenWrt is **purpose-built for routers** — exactly what we need. Modern OpenWrt (24.10+) ships with `apk` (yes, Alpine's package manager, ported in), `procd` for init, `fw4` for native nftables firewall, and an official BPI-R3 Mini image. It is the right tool for the job.
 
-**Why Alpine over Debian:**
+**Why OpenWrt over Alpine (history of this decision):**
 
-| | Debian 13 | Alpine Linux |
+We tried Alpine first, attracted by its mature `apk` ecosystem and OpenRC. Several days of bring-up later we hit:
+
+- No official Alpine image for the BPI-R3 Mini → had to bootstrap from `apk add` inside an OpenWrt chroot. Fragile.
+- The board's eMMC controller is exposed by an overlay DTBO (`mt7986a-bananapi-bpi-r3-emmc.dtbo`); the base DTB shipped by Alpine `linux-edge` does not enable it. Without merging the overlay, no `mmcblk0` and root mount fails.
+- OpenRC silently hangs in `sysinit` on a rootfs created via `apk add` outside `setup-alpine` (missing `/etc/rc.conf`, missing `/dev/null`, missing runlevel symlinks).
+- Captive-portal CSRF tokens keyed by client MAC break under Android private MAC randomization patterns.
+
+Pivoting to OpenWrt 25.12.2 took ~30 minutes from official image to working captive portal.
+
+**Why OpenWrt over Debian:**
+
+| | Debian 13 (Fejes) | **OpenWrt 25.12.2** |
 |---|---|---|
-| Base install | ~1-2 GB | ~130 MB |
-| libc | glibc (~30 MB) | musl (~1 MB) |
-| Init system | systemd (~50+ binaries) | OpenRC (shell scripts, ~500 KB) |
-| RAM at idle | ~150-200 MB | ~30-50 MB |
-| Rust target | `aarch64-unknown-linux-gnu` | `aarch64-unknown-linux-musl` **(native!)** |
-| Package manager | apt | apk (faster, dependency-minimal) |
-| eMMC usage (8GB) | ~2-3 GB used, ~5 GB free | ~300 MB used, ~7 GB free |
-| Attack surface | Large (systemd, dbus, polkit...) | Minimal (busybox + musl + OpenRC) |
+| Image for BPI-R3 Mini | Manual (DTB / boot chain) | **Official, signed** |
+| Install | extlinux + manual debootstrap | `dd` 3 artefacts, switch HW switch |
+| Boot time | ~15-25 s (systemd) | **~5 s (procd)** |
+| WiFi config | manual hostapd.conf | UCI `/etc/config/wireless` |
+| Firewall | manual nftables | UCI `/etc/config/firewall` + `fw4` |
+| eMMC usage (8 GB) | ~2-3 GB | **~300 MB used** |
+| RAM at idle | ~150-200 MB | ~50 MB |
+| Rust target ABI | `aarch64-unknown-linux-gnu` | `aarch64-unknown-linux-musl` **(native!)** |
+| Package manager | apt | apk |
+| WED hardware NAT offload | manual setup | **on by default** |
 
-**Key advantages for DidiCafe:**
-
-- **musl-native** -- our Rust binary targets `aarch64-unknown-linux-musl`, which is Alpine's native libc. No cross-compilation mismatch, no glibc dependency bloat. Static linking is the default and natural choice.
-- **Tiny footprint** -- ~130 MB base install on a 8 GB eMMC leaves ~7 GB free. No wasted space.
-- **Fast boot** -- OpenRC boots in seconds, not the 15-30s systemd dance.
-- **Security posture** -- smaller attack surface, all binaries compiled with PIE + stack-smashing protection by default.
-- **Same kernel** -- Alpine uses mainline Linux kernel. Same `clk_ignore_unused pd_ignore_unused cma=128M` kernel params as the Debian guide. Same `linux-firmware` package for WiFi/Ethernet drivers.
-- **Packages available** -- `apk add hostapd dnsmasq nftables` works out of the box.
-
-**Reference:** Debian 13 is [confirmed working](https://fejes.dev/posts/linux/r3-mini/) on the R3 Mini by Ferenc Fejes. Alpine uses the same mainline kernel and u-boot chain, so the same boot process applies. The kernel params and DTB are identical.
-
-**Our approach: Alpine on eMMC, OpenWrt on NAND as recovery.**
+**Storage layout:**
 
 ```
-Storage layout:
-┌──────────────────┐
-│ SPI NAND (128MB) │  OpenWrt (recovery / fallback)
-├──────────────────┤
-│ eMMC (8GB)       │  Alpine Linux
-│  ├─ /boot        │    kernel + DTB + extlinux.conf (~50 MB)
-│  ├─ /            │    rootfs (~130 MB base)
-│  └─ /var/lib/    │    didicafe SQLite DB
-│                  │    ~7 GB free
-└──────────────────┘
+┌────────────────────────────────────────┐
+│ SPI NAND (128 MB)                      │  Factory OpenWrt 21.02 — recovery only
+├────────────────────────────────────────┤
+│ eMMC (8 GB), GPT layout                │  OpenWrt 25.12.2 — production
+│  ├─ mmcblk0boot0 (4 MB, HW boot part)  │    BL2 preloader
+│  ├─ p3 fip                              │    BL31 + U-Boot (FIT)
+│  ├─ p4 recovery                         │    spare slot
+│  ├─ p5 production (~448 MB)             │    kernel + squashfs + overlay
+│  └─ overlay (f2fs, ~7 GB)               │    /etc/config, didicafe binary,
+│                                         │    SQLite DB, certs
+└────────────────────────────────────────┘
 ```
+
+A hardware switch on the PCB selects which side BootROM reads. `eMMC` for prod, `NAND` for recovery — flip and reboot, never touched code recovers a working router.
 
 **Deployment:**
 
 ```
-Build machine (x86_64)                    BPI-R3 Mini (aarch64)
-┌─────────────────────────┐               ┌───────────────────────┐
-│ cargo build --release    │  scp binary   │ Alpine Linux          │
-│ --target aarch64-unknown │ ───────────>  │ /usr/local/bin/       │
-│  -linux-musl             │               │   didicafe            │
-│                          │               │                       │
-│ (static binary, ~5-10MB, │               │ OpenRC manages        │
-│  zero runtime deps)      │               │ hostapd, dnsmasq,     │
-└─────────────────────────┘               │ nftables, didicafe    │
-                                          └───────────────────────┘
+Build machine (macOS / Linux)                BPI-R3 Mini (aarch64)
+┌────────────────────────────┐                ┌──────────────────────┐
+│ cargo zigbuild --release    │   scp -O      │ OpenWrt 25.12.2       │
+│ --target aarch64-unknown    │  ───────────> │ /usr/local/bin/       │
+│  -linux-musl                │               │   didicafe            │
+│                             │               │                       │
+│ static binary, ~5 MB,       │               │ procd manages         │
+│ zero runtime deps           │               │ hostapd, dnsmasq,     │
+└────────────────────────────┘                │ fw4 (nftables),       │
+                                              │ didicafe              │
+                                              └──────────────────────┘
 ```
 
-The resulting binary is fully static, zero runtime dependencies. `scp` it, `chmod +x`, done.
+`zigbuild` (instead of plain `cargo build`) uses `zig cc` as a portable cross-linker — works on macOS without installing musl-cross. The resulting binary is fully static (musl), runs on any aarch64 Linux including OpenWrt.
 
-### Post-Install Checklist (Alpine on R3 Mini)
+### Post-Install Checklist (OpenWrt on R3 Mini)
 
-1. Flash OpenWrt to NAND (recovery), install Alpine on eMMC
-2. Add kernel params in `/etc/update-extlinux.conf`:
-   ```
-   default_kernel_opts="quiet clk_ignore_unused pd_ignore_unused cma=128M"
-   ```
-   Then run `update-extlinux`
-3. Install firmware and networking:
-   ```
-   apk add linux-firmware-mediatek hostapd dnsmasq nftables
-   ```
-4. Enable services:
-   ```
-   rc-update add hostapd default
-   rc-update add dnsmasq default
-   rc-update add nftables default
-   rc-update add didicafe default
-   ```
-5. Deploy `didicafe` binary to `/usr/local/bin/`
+See [`INSTALL.md`](./INSTALL.md) for the full procedure. Outline:
+
+1. Boot factory OpenWrt 21.02 from NAND (default)
+2. Download OpenWrt 25.12.2 mediatek/filogic eMMC artefacts
+3. `dd` preloader → mmcblk0boot0, FIP → p3, sysupgrade ITB → p5, then `mmc bootpart enable 1 1`
+4. Switch hardware NAND → eMMC, repower → fresh OpenWrt 25.12.2
+5. UCI: LAN 10.10.0.1/24, WiFi DidiCafe (2.4 + 5 GHz), DHCP option 114, DNS for `didicafe.local` + `admin.didicafe.local`
+6. Generate TLS certs via `scripts/gen-certs.sh`, push server cert + key to board
+7. Drop `didicafe` binary in `/usr/local/bin/`, config in `/etc/didicafe/`, statics in `/opt/didicafe/`
+8. Add nftables fragment `/etc/nftables.didicafe.nft` (DNAT HTTP unauth → portal, force DNS local, filter forward)
+9. procd init script `/etc/init.d/didicafe` with `START=95` — applies the nft fragment then launches the daemon
+10. `service didicafe enable && service didicafe start`
 
 ### Upgrade Path
 
@@ -688,17 +688,19 @@ Clients could try to spoof an authenticated client's MAC address. Mitigations:
 | Layer | Technology | Why |
 |-------|-----------|-----|
 | Hardware | Banana Pi BPI-R3 Mini | Purpose-built router SBC, dual 2.5GbE, WiFi 6, MT7986A, 65x65mm, ~126 EUR |
-| OS | Alpine Linux arm64 | musl-native, ~130 MB base, fast boot, `apk` package manager, OpenRC init |
-| WiFi AP | hostapd | Industry standard, full control over AP configuration |
-| DHCP/DNS | dnsmasq | Lightweight, proven, perfect for this scale |
-| Firewall | nftables | Modern Linux firewall, native timeout sets, kernel-level performance |
-| Captive Portal | **didicafe** (Rust) | Static musl binary, `aarch64-unknown-linux-musl` (Alpine's native target), zero deps |
+| OS | OpenWrt 25.12.2 (mediatek/filogic) | Purpose-built for routers, official BPI-R3 Mini image, musl native, ~50 MB RAM idle, hardware NAT offload by default |
+| WiFi AP | hostapd | Industry standard. Configured via UCI `/etc/config/wireless`. |
+| DHCP/DNS | dnsmasq | Lightweight, proven. UCI `/etc/config/dhcp` includes RFC 8910 option 114 + local domain entries. |
+| Firewall | nftables via `fw4` | Native nftables backend in OpenWrt 22.03+. didicafe adds its own `inet didicafe` table for captive flow. |
+| Captive Portal | **didicafe** (Rust) | Static musl binary, `aarch64-unknown-linux-musl`, zero deps |
 | HTTP Framework | axum | Async, fast, ergonomic, tower middleware ecosystem |
-| Database | SQLite (via rusqlite) | Zero config, embedded, crash-safe with WAL, perfect for single-node |
+| TLS | rustls (via tokio-rustls) | Pure-Rust TLS, no OpenSSL dependency. Admin HTTPS on port 443 with locally-signed cert. |
+| Database | SQLite (via sqlx) | Zero config, embedded, crash-safe with WAL, perfect for single-node |
 | Async Runtime | tokio | De facto standard for async Rust |
 | Frontend | HTML + minimal CSS + vanilla JS | Served by axum. No build step. No npm. Jinja-like templates (askama). |
 | nftables Control | `nft` CLI (via `tokio::process::Command`) | Simpler than raw netlink. Reliable enough for this scale. Upgrade to netlink later if needed. |
-| Process Manager | OpenRC | Lightweight, shell-based init. `rc-update add didicafe default` |
+| Process Manager | procd | OpenWrt's native init. ~5 s boot to login, respawn on crash, `service` CLI. |
+| Cross-compilation | `cargo zigbuild` | Uses zig as portable cross-linker. Works on macOS without musl-cross. |
 
 ---
 
@@ -749,7 +751,7 @@ didicafe/
 │   ├── hostapd.conf           # WiFi AP configuration
 │   ├── dnsmasq.conf           # DHCP/DNS configuration
 │   ├── nftables.conf          # Base firewall rules
-│   └── didicafe.initd         # OpenRC init script
+│   └── didicafe.init          # procd init script for OpenWrt
 └── scripts/
     ├── setup.sh               # Initial SBC setup script
     └── cross-compile.sh       # Cross-compilation helper
@@ -857,62 +859,70 @@ log-dhcp
 
 ```mermaid
 sequenceDiagram
-    participant BOOT as OpenRC
-    participant NET as networking
+    participant BOOT as procd
+    participant NET as netifd
+    participant FW as fw4
     participant HP as hostapd
     participant DM as dnsmasq
-    participant NFT as nftables
-    participant DC as didicafe
+    participant DC as didicafe (S95)
 
     BOOT->>NET: Start networking
-    NET->>NET: eth0: DHCP client (get IP from Starlink)
-    NET->>NET: wlan0: static IP 10.10.0.1/24
+    NET->>NET: br-lan: 10.10.0.1/24 (static)
+    NET->>NET: eth1 WAN: DHCP client (Starlink / Mac sharing)
 
-    BOOT->>NFT: Load base nftables rules
-    NFT->>NFT: Create didicafe table + auth_macs set
+    BOOT->>FW: Load fw4 nftables rules
+    FW->>FW: inet fw4 table (zones lan/wan, masquerade)
 
     BOOT->>HP: Start hostapd
-    HP->>HP: Create AP on wlan0 (SSID: DidiCafe)
+    HP->>HP: Bring up phy0-ap0 + phy1-ap0 (SSID: DidiCafe)
 
     BOOT->>DM: Start dnsmasq
-    DM->>DM: DHCP server on wlan0 + DNS forwarder
+    DM->>DM: DHCP server on br-lan + DNS forwarder + option 114
 
-    BOOT->>DC: Start didicafe daemon
-    DC->>DC: Read config, open SQLite
-    DC->>DC: Restore active sessions from DB
-    DC->>NFT: Re-add MACs with remaining timeouts
-    DC->>DC: Start HTTP server on 10.10.0.1:8080
-    DC->>DC: Start session cleanup ticker
+    BOOT->>DC: /etc/init.d/didicafe start (priority S95)
+    DC->>DC: nft -f /etc/nftables.didicafe.nft (DNAT + filter chains)
+    DC->>DC: didicafe daemon: read config, open SQLite, migrate
+    DC->>DC: Restore active sessions, re-authorize MACs in nftables
+    DC->>DC: Listen 10.10.0.1:8080 (portal HTTP) and 10.10.0.1:443 (admin HTTPS)
 
     Note over DC: System ready. Clients can connect.
 ```
 
-### OpenRC Init Script (`config/didicafe.initd`)
+### procd Init Script (`config/didicafe.init`)
+
+OpenWrt's procd uses init scripts under `/etc/init.d/` with a specific DSL.
 
 ```sh
-#!/sbin/openrc-run
+#!/bin/sh /etc/rc.common
 
-name="didicafe"
-description="DidiCafe Captive Portal Daemon"
-command="/usr/local/bin/didicafe"
-command_args="--config /etc/didicafe/didicafe.toml"
-command_background=true
-pidfile="/run/${RC_SVCNAME}.pid"
-output_log="/var/log/didicafe.log"
-error_log="/var/log/didicafe.err"
+USE_PROCD=1
+START=95
+STOP=10
 
-depend() {
-    need net hostapd dnsmasq nftables
-    after firewall
+start_service() {
+    [ -d /var/lib/didicafe ] || mkdir -p /var/lib/didicafe
+
+    # Apply the captive-portal nftables fragment (DNAT + filter chains)
+    # before launching the daemon. didicafe will then add/remove MACs to
+    # the auth_clients set at runtime.
+    [ -f /etc/nftables.didicafe.nft ] && /usr/sbin/nft -f /etc/nftables.didicafe.nft
+
+    procd_open_instance
+    procd_set_param command /usr/local/bin/didicafe --config /etc/didicafe/didicafe.toml
+    procd_set_param respawn 3600 5 0
+    procd_set_param stdout 1
+    procd_set_param stderr 1
+    procd_set_param env RUST_LOG=didicafe=info
+    procd_close_instance
 }
 ```
 
 Install with:
 ```sh
-cp config/didicafe.initd /etc/init.d/didicafe
+cp config/didicafe.init /etc/init.d/didicafe
 chmod +x /etc/init.d/didicafe
-rc-update add didicafe default
-rc-service didicafe start
+/etc/init.d/didicafe enable    # creates /etc/rc.d/S95didicafe + K10didicafe
+/etc/init.d/didicafe start
 ```
 
 ---
@@ -955,8 +965,8 @@ gantt
     axisFormat %s
 
     section Phase 1: Foundation
-    SBC setup (Alpine + networking)           :p1a, 0, 2
-    hostapd + dnsmasq + nftables config       :p1b, 2, 4
+    SBC setup (OpenWrt 25.12.2 + UCI)         :p1a, 0, 2
+    hostapd + dnsmasq + fw4 config            :p1b, 2, 4
     Base Rust project (axum + rusqlite)        :p1c, 2, 5
     nftables controller module                :p1d, 5, 7
     Token engine (generate, validate)          :p1e, 5, 8
@@ -987,7 +997,7 @@ gantt
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Single SBC vs. Router + Server | Single SBC (BPI-R3 Mini) | Simplicity, lower cost, fewer failure points, 65x65mm form factor |
-| OS | Alpine Linux | musl-native (Rust target matches), ~130 MB footprint, OpenRC fast boot, minimal attack surface. OpenWrt on NAND as recovery. |
+| OS | OpenWrt 25.12.2 mainline (mediatek/filogic) | Purpose-built for routers. Official BPI-R3 Mini image, musl native (Rust target matches), procd ~5 s boot, hardware NAT offload by default. UCI for hostapd / dnsmasq / fw4. Factory OpenWrt 21.02 on NAND as recovery. We tried Alpine first; bring-up was a multi-day struggle (no official image, OpenRC silent hangs, eMMC overlay DTBO required). OpenWrt: ~30 min from official image to working portal. |
 | nft CLI vs. netlink | nft CLI first | Simpler to implement, debug, and maintain. Netlink is an optimization for later. |
 | Open WiFi vs. WPA2 | Open WiFi | Captive portal is the auth layer. Open network ensures CPD works reliably on all devices. Standard for hotspots. |
 | SQLite vs. Postgres | SQLite | Embedded, no separate process, perfect for single-node, crash-safe with WAL |
