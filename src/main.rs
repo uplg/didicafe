@@ -500,6 +500,6 @@ VgIp3f6AltPqf0l546b8Fe678K8K7zKF4rAtx7gVzDeKG8Fa09wwG5ec
         );
 
         let acceptor = build_tls_acceptor(&tls_config).unwrap();
-        let _ = tokio_rustls::TlsAcceptor::from(acceptor);
+        let _ = acceptor;
     }
 }
