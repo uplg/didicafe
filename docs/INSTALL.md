@@ -219,6 +219,7 @@ uci set wireless.radio0.country='MG'
 uci -q delete wireless.default_radio0.disabled
 uci set wireless.default_radio0.ssid='DidiCafe'
 uci set wireless.default_radio0.encryption='none'
+uci set wireless.default_radio0.isolate='1'
 
 # 5 GHz radio
 uci set wireless.radio1.disabled='0'
@@ -226,6 +227,7 @@ uci set wireless.radio1.country='MG'
 uci -q delete wireless.default_radio1.disabled
 uci set wireless.default_radio1.ssid='DidiCafe'
 uci set wireless.default_radio1.encryption='none'
+uci set wireless.default_radio1.isolate='1'
 
 uci commit wireless
 wifi reload
