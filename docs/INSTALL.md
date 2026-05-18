@@ -488,24 +488,7 @@ can corrupt the other.
 
 ---
 
-## 8. Hardening before going live
-
-Before handing the box to a real café, durcir :
-
-- [ ] Replace the temporary `Allow-SSH-WAN-temp` firewall rule with
-      LAN-only SSH (or remove SSH from WAN entirely)
-- [ ] Set `tls.enabled = true` and confirm the cert is valid
-- [ ] Install `certs/ca.pem` on the manager's device(s)
-- [ ] Set `admin.allowed_networks = ["10.10.0.0/24"]` in the TOML
-- [ ] Enable `dropbear` key-based auth, disable password SSH
-- [ ] Set up daily `sqlite3 .backup` of `/srv/didicafe/didicafe.db`
-- [ ] Check `/etc/sysupgrade.conf` includes our config files so OpenWrt
-      sysupgrades don't wipe them (`/srv/didicafe/`, `/etc/didicafe/`,
-      `/opt/didicafe/`, `/etc/nftables.didicafe.nft`, `/etc/init.d/didicafe`)
-
----
-
-## 9. Remote access (Tailscale)
+## 8. Remote access (Tailscale)
 
 Starlink puts the box behind **CGNAT** — there is no public IP, so you
 cannot port-forward to it from the Internet. To support the operator
@@ -513,7 +496,7 @@ cannot port-forward to it from the Internet. To support the operator
 mesh VPN. Tailscale is the simplest option, free for personal use, runs
 on OpenWrt, and traverses NAT automatically.
 
-### 9.1 Install Tailscale on the box (one-time, by the integrator)
+### 8.1 Install Tailscale on the box (one-time, by the integrator)
 
 ```sh
 apk update
@@ -538,7 +521,7 @@ Once authorized, the box is reachable at a private `*.ts.net` hostname
 from any device on your tailnet — phone, laptop, anywhere on the
 Internet — without opening a port on the café's WAN.
 
-### 9.2 Test from your laptop
+### 8.2 Test from your laptop
 
 After installing Tailscale on your laptop too:
 
@@ -551,7 +534,7 @@ ssh -L 10443:10.10.0.1:443 root@didicafe-cafename    # tunnel admin to localhost
 Then `https://localhost:10443/admin/login` from your laptop — full admin
 access from anywhere, no port forwarding, no public IP.
 
-### 9.3 What to communicate to the café manager
+### 8.3 What to communicate to the café manager
 
 The manager has **no remote access work to do**. Their only job is:
 
@@ -561,7 +544,7 @@ The manager has **no remote access work to do**. Their only job is:
 
 You (the integrator) handle remote support via your tailnet.
 
-### 9.4 Lock down Tailscale
+### 8.4 Lock down Tailscale
 
 In the [Tailscale admin console](https://login.tailscale.com/admin):
 
@@ -576,7 +559,7 @@ In the [Tailscale admin console](https://login.tailscale.com/admin):
 - Optionally, enable [Tailscale SSH](https://tailscale.com/kb/1193/tailscale-ssh)
   → no SSH keys to manage, auth via your tailnet identity.
 
-### 9.5 Alternative — WireGuard direct (no third-party service)
+### 8.5 Alternative — WireGuard direct (no third-party service)
 
 If you don't want to depend on Tailscale's coordination server, set up
 plain WireGuard between your laptop and the box. Requires a small VPS
@@ -587,7 +570,7 @@ if you go this route.
 
 ---
 
-## 10. Going live — checklist
+## 9. Going live — checklist
 
 Once §1–8 are done and §9 (Tailscale) gives you remote access:
 

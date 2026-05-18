@@ -227,25 +227,17 @@ async fn main() -> Result<()> {
 /// Loads PEM certificate chain and private key from disk.
 /// Uses rustls with safe defaults (TLS 1.2+, strong cipher suites).
 fn build_tls_acceptor(tls_config: &config::TlsConfig) -> Result<tokio_rustls::TlsAcceptor> {
-    use rustls_pemfile::{certs, private_key};
-    use std::fs::File;
-    use std::io::BufReader;
+    use rustls_pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject};
     use tokio_rustls::rustls::ServerConfig;
 
-    // Load certificate chain
-    let cert_file = File::open(&tls_config.cert_path)
-        .with_context(|| format!("failed to open TLS cert: {}", tls_config.cert_path))?;
-    let cert_chain: Vec<_> = certs(&mut BufReader::new(cert_file))
-        .collect::<Result<Vec<_>, _>>()
+    let cert_chain: Vec<CertificateDer<'static>> = CertificateDer::pem_file_iter(&tls_config.cert_path)
+        .with_context(|| format!("failed to open TLS cert: {}", tls_config.cert_path))?
+        .collect::<Result<_, _>>()
         .with_context(|| format!("failed to parse TLS cert: {}", tls_config.cert_path))?;
     anyhow::ensure!(!cert_chain.is_empty(), "TLS cert file contains no certificates");
 
-    // Load private key
-    let key_file = File::open(&tls_config.key_path)
-        .with_context(|| format!("failed to open TLS key: {}", tls_config.key_path))?;
-    let key = private_key(&mut BufReader::new(key_file))
-        .with_context(|| format!("failed to parse TLS key: {}", tls_config.key_path))?
-        .ok_or_else(|| anyhow::anyhow!("TLS key file contains no private key: {}", tls_config.key_path))?;
+    let key = PrivateKeyDer::from_pem_file(&tls_config.key_path)
+        .with_context(|| format!("failed to parse TLS key: {}", tls_config.key_path))?;
 
     let server_config = ServerConfig::builder()
         .with_no_client_auth()
@@ -335,5 +327,161 @@ async fn serve_tls(
                 break;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tls_tests {
+    use super::*;
+    use std::io::Write;
+
+    const TEST_CERT: &str = "\
+-----BEGIN CERTIFICATE-----
+MIIBczCCARmgAwIBAgIUDmwy3JVqxg/Du9ax80EEcu3BvtAwCgYIKoZIzj0EAwIw
+DzENMAsGA1UEAwwEdGVzdDAeFw0yNjA1MTcyMzQ1NTJaFw0yNjA1MTgyMzQ1NTJa
+MA8xDTALBgNVBAMMBHRlc3QwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAAScGy6W
+Buk9mQlgu2YZ2GFbc75WqZQNVgIp3f6AltPqf0l546b8Fe678K8K7zKF4rAtx7gV
+zDeKG8Fa09wwG5eco1MwUTAdBgNVHQ4EFgQUQt12K4n0515MS3E6wvnNszxdUqYw
+HwYDVR0jBBgwFoAUQt12K4n0515MS3E6wvnNszxdUqYwDwYDVR0TAQH/BAUwAwEB
+/zAKBggqhkjOPQQDAgNIADBFAiBnK51WuO+DR2Ob+r9vO5p2Jy3n0xUjZpfwLbHd
+IbN+7wIhAOb387wB2HXvizm/4JsKfLFW3KIgDBj9AV1WP2UsxZSz
+-----END CERTIFICATE-----
+";
+
+    const TEST_KEY: &str = "\
+-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgqk+nSl93Lp+12YpM
+LCUBPDl3KEmom49nbKj8oSNwqH+hRANCAAScGy6WBuk9mQlgu2YZ2GFbc75WqZQN
+VgIp3f6AltPqf0l546b8Fe678K8K7zKF4rAtx7gVzDeKG8Fa09wwG5ec
+-----END PRIVATE KEY-----
+";
+
+    fn write_temp(content: &str) -> tempfile::NamedTempFile {
+        let mut file = tempfile::NamedTempFile::new().unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+        file.flush().unwrap();
+        file
+    }
+
+    fn make_tls_config(cert_path: &str, key_path: &str) -> crate::config::TlsConfig {
+        crate::config::TlsConfig {
+            enabled: true,
+            cert_path: cert_path.to_string(),
+            key_path: key_path.to_string(),
+            admin_port: 8443,
+        }
+    }
+
+    #[test]
+    fn test_build_tls_acceptor_valid_cert_and_key() {
+        let cert_file = write_temp(TEST_CERT);
+        let key_file = write_temp(TEST_KEY);
+        let tls_config = make_tls_config(
+            cert_file.path().to_str().unwrap(),
+            key_file.path().to_str().unwrap(),
+        );
+
+        let result = build_tls_acceptor(&tls_config);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_build_tls_acceptor_missing_cert_file() {
+        let key_file = write_temp(TEST_KEY);
+        let tls_config = make_tls_config("/nonexistent/cert.pem", key_file.path().to_str().unwrap());
+
+        let err = match build_tls_acceptor(&tls_config) {
+            Ok(_) => panic!("expected error"),
+            Err(e) => e,
+        };
+        assert!(err.to_string().contains("failed to open TLS cert"));
+    }
+
+    #[test]
+    fn test_build_tls_acceptor_missing_key_file() {
+        let cert_file = write_temp(TEST_CERT);
+        let tls_config = make_tls_config(cert_file.path().to_str().unwrap(), "/nonexistent/key.pem");
+
+        let err = match build_tls_acceptor(&tls_config) {
+            Ok(_) => panic!("expected error"),
+            Err(e) => e,
+        };
+        assert!(err.to_string().contains("failed to parse TLS key"));
+    }
+
+    #[test]
+    fn test_build_tls_acceptor_empty_cert_file() {
+        let cert_file = write_temp("");
+        let key_file = write_temp(TEST_KEY);
+        let tls_config = make_tls_config(
+            cert_file.path().to_str().unwrap(),
+            key_file.path().to_str().unwrap(),
+        );
+
+        let err = match build_tls_acceptor(&tls_config) {
+            Ok(_) => panic!("expected error"),
+            Err(e) => e,
+        };
+        assert!(err.to_string().contains("no certificates"));
+    }
+
+    #[test]
+    fn test_build_tls_acceptor_empty_key_file() {
+        let cert_file = write_temp(TEST_CERT);
+        let key_file = write_temp("");
+        let tls_config = make_tls_config(
+            cert_file.path().to_str().unwrap(),
+            key_file.path().to_str().unwrap(),
+        );
+
+        let err = match build_tls_acceptor(&tls_config) {
+            Ok(_) => panic!("expected error"),
+            Err(e) => e,
+        };
+        // Empty file: from_pem_file fails with "no items found"
+        let full_msg = format!("{err:#}");
+        assert!(
+            full_msg.contains("no items found"),
+            "unexpected error: {full_msg}"
+        );
+    }
+
+    #[test]
+    fn test_build_tls_acceptor_garbage_cert_file() {
+        let cert_file = write_temp("not a pem file");
+        let key_file = write_temp(TEST_KEY);
+        let tls_config = make_tls_config(
+            cert_file.path().to_str().unwrap(),
+            key_file.path().to_str().unwrap(),
+        );
+
+        let result = build_tls_acceptor(&tls_config);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_build_tls_acceptor_garbage_key_file() {
+        let cert_file = write_temp(TEST_CERT);
+        let key_file = write_temp("not a pem key");
+        let tls_config = make_tls_config(
+            cert_file.path().to_str().unwrap(),
+            key_file.path().to_str().unwrap(),
+        );
+
+        let result = build_tls_acceptor(&tls_config);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_build_tls_acceptor_returns_usable_acceptor() {
+        let cert_file = write_temp(TEST_CERT);
+        let key_file = write_temp(TEST_KEY);
+        let tls_config = make_tls_config(
+            cert_file.path().to_str().unwrap(),
+            key_file.path().to_str().unwrap(),
+        );
+
+        let acceptor = build_tls_acceptor(&tls_config).unwrap();
+        let _ = tokio_rustls::TlsAcceptor::from(acceptor);
     }
 }

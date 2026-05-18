@@ -1,6 +1,6 @@
 [package]
 name = "didicafe"
-version = "0.1.0"
+version = "1.0.1"
 edition = "2024"
 description = "Captive portal daemon for time-limited WiFi access"
 license = "MIT"
@@ -15,7 +15,7 @@ tower-http = { version = "0.6", features = ["fs"] }
 tokio = { version = "1", features = ["full"] }
 
 # Templates
-askama = "0.15"
+askama = "0.16"
 
 # Database
 sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "macros"] }
@@ -31,8 +31,10 @@ argon2 = { version = "0.5", features = ["std"] }
 subtle = "2"
 
 # TLS (admin HTTPS listener)
+# rustls-pki-types replaces the unmaintained rustls-pemfile (RUSTSEC-2025-0134).
+# The repo was archived Aug 2025; PEM parsing is now part of rustls-pki-types 1.9+.
 tokio-rustls = "0.26"
-rustls-pemfile = "2"
+rustls-pki-types = "1"
 hyper = { version = "1", features = ["server", "http1"] }
 hyper-util = { version = "0.1", features = ["tokio", "server-auto", "service"] }
 
@@ -66,3 +68,4 @@ debug = true        # Include debug symbols
 
 [dev-dependencies]
 http-body-util = "0.1.3"
+tempfile = "3"
