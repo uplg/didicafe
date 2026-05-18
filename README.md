@@ -1,5 +1,9 @@
 # DidiCafe
 
+![CI](https://github.com/uplg/didicafe/actions/workflows/ci.yml/badge.svg)
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Rust](https://img.shields.io/badge/rust-1.85%2B-orange.svg)
+
 Captive portal daemon for time-limited WiFi access. Built in Rust, designed for single-board computers running OpenWrt.
 
 ## Overview

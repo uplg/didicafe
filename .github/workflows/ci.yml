@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  MUSL_TARGET: aarch64-unknown-linux-musl
+
+jobs:
+  check:
+    name: Format, Clippy & Deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format
+        run: cargo fmt -- --check
+
+      - name: Clippy
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
+
+      - uses: EmbarkStudios/cargo-deny-action@v2
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Test
+        run: cargo test --locked --all-features
+
+  build:
+    name: Build (native + musl aarch64)
+    runs-on: ubuntu-latest
+    needs: [check, test]
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ env.MUSL_TARGET }}
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@v2
+
+      - name: Install cargo-zigbuild
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-zigbuild
+
+      - name: Native build (debug check)
+        run: cargo build --locked
+
+      - name: musl build aarch64 (release)
+        run: cargo zigbuild --release --locked --target ${{ env.MUSL_TARGET }}
+
+      - name: Prepare binary
+        run: |
+          mkdir -p dist
+          cp target/${{ env.MUSL_TARGET }}/release/didicafe dist/didicafe
+          chmod +x dist/didicafe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: didicafe-aarch64-musl
+          path: dist/didicafe
+          retention-days: ${{ github.event_name == 'pull_request' && 30 || 90 }}
