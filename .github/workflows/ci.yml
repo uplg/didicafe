@@ -70,16 +70,3 @@ jobs:
 
       - name: musl build aarch64 (release)
         run: cargo zigbuild --release --locked --target ${{ env.MUSL_TARGET }}
-
-      - name: Prepare binary
-        run: |
-          mkdir -p dist
-          cp target/${{ env.MUSL_TARGET }}/release/didicafe dist/didicafe
-          chmod +x dist/didicafe
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: didicafe-aarch64-musl
-          path: dist/didicafe
-          retention-days: ${{ github.event_name == 'pull_request' && 30 || 90 }}
