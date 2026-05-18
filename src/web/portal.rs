@@ -1,21 +1,20 @@
-use std::sync::Arc;
+use askama::Template;
 use axum::{
-    Form, Json,
-    Router,
+    Form, Json, Router,
     extract::State,
     response::{IntoResponse, Redirect},
     routing::{get, post},
 };
-use askama::Template;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
+use super::error::{AppError, render};
+use super::extractors::ClientInfo;
 use crate::AppState;
 use crate::db::Plan;
 use crate::services;
 use crate::services::rate_limit::RateLimitResult;
 use crate::services::token::TokenLookup;
-use super::error::{AppError, render};
-use super::extractors::ClientInfo;
 
 // -- Custom Askama filters --
 
@@ -127,7 +126,11 @@ pub struct AuthForm {
 
 /// Helper: build a `PortalTemplate` with the portal config fields filled in.
 /// Reads runtime settings from DB, falling back to TOML defaults.
-async fn portal_template(state: &Arc<AppState>, error: Option<String>, csrf_token: String) -> PortalTemplate {
+async fn portal_template(
+    state: &Arc<AppState>,
+    error: Option<String>,
+    csrf_token: String,
+) -> PortalTemplate {
     let portal = super::admin::portal_config_from_db(state).await;
     let theme_css = portal.generate_theme_css();
     PortalTemplate {
@@ -178,17 +181,24 @@ async fn portal_auth(
     Form(form): Form<AuthForm>,
 ) -> Result<impl IntoResponse, AppError> {
     // CSRF validation: Synchronizer Token Pattern (server-side)
-    if !state.portal_csrf_store.validate(&client.mac, &form.csrf_token) {
+    if !state
+        .portal_csrf_store
+        .validate(&client.mac, &form.csrf_token)
+    {
         tracing::warn!(
             client_mac = %client.mac,
             submitted_csrf = %form.csrf_token,
             "portal_auth: CSRF validation failed"
         );
-        return Ok(render(&portal_template(
-            &state,
-            Some("portal.error.csrf".to_string()),
-            state.portal_csrf_store.generate(&client.mac),
-        ).await)?.into_response());
+        return Ok(render(
+            &portal_template(
+                &state,
+                Some("portal.error.csrf".to_string()),
+                state.portal_csrf_store.generate(&client.mac),
+            )
+            .await,
+        )?
+        .into_response());
     }
 
     // Rate limit check BEFORE any DB lookup (OWASP: never leak token existence)
@@ -198,7 +208,9 @@ async fn portal_auth(
             tracing::warn!(client_ip = %client.ip, "portal_auth: rate limited (throttled)");
             return Err(AppError::RateLimited { retry_after: None });
         }
-        RateLimitResult::Banned { retry_after_seconds } => {
+        RateLimitResult::Banned {
+            retry_after_seconds,
+        } => {
             tracing::warn!(
                 client_ip = %client.ip,
                 retry_after_seconds,
@@ -221,15 +233,20 @@ async fn portal_auth(
             error = %msg,
             "portal_auth: token format invalid"
         );
-        return Ok(render(&portal_template(
-            &state,
-            Some("portal.error.invalid".to_string()),
-            state.portal_csrf_store.generate(&client.mac),
-        ).await)?.into_response());
+        return Ok(render(
+            &portal_template(
+                &state,
+                Some("portal.error.invalid".to_string()),
+                state.portal_csrf_store.generate(&client.mac),
+            )
+            .await,
+        )?
+        .into_response());
     }
 
     // Validate token against DB
-    let lookup = services::token::validate_token(&state.db, &code).await
+    let lookup = services::token::validate_token(&state.db, &code)
+        .await
         .map_err(AppError::Internal)?;
 
     match lookup {
@@ -241,15 +258,21 @@ async fn portal_auth(
                 token.duration_minutes,
                 &client.mac,
                 &client.ip.to_string(),
-            ).await {
+            )
+            .await
+            {
                 Ok(_) => Ok(Redirect::to("/portal/success").into_response()),
                 Err(e) => {
                     tracing::error!("session creation failed: {e}");
-                    Ok(render(&portal_template(
-                        &state,
-                        Some("portal.error.internal".to_string()),
-                        state.portal_csrf_store.generate(&client.mac),
-                    ).await)?.into_response())
+                    Ok(render(
+                        &portal_template(
+                            &state,
+                            Some("portal.error.internal".to_string()),
+                            state.portal_csrf_store.generate(&client.mac),
+                        )
+                        .await,
+                    )?
+                    .into_response())
                 }
             }
         }
@@ -261,15 +284,21 @@ async fn portal_auth(
                 token.id,
                 &client.mac,
                 &client.ip.to_string(),
-            ).await {
+            )
+            .await
+            {
                 Ok(_) => Ok(Redirect::to("/portal/success").into_response()),
                 Err(e) => {
                     tracing::error!("session migration failed: {e}");
-                    Ok(render(&portal_template(
-                        &state,
-                        Some("portal.error.expired".to_string()),
-                        state.portal_csrf_store.generate(&client.mac),
-                    ).await)?.into_response())
+                    Ok(render(
+                        &portal_template(
+                            &state,
+                            Some("portal.error.expired".to_string()),
+                            state.portal_csrf_store.generate(&client.mac),
+                        )
+                        .await,
+                    )?
+                    .into_response())
                 }
             }
         }
@@ -279,11 +308,15 @@ async fn portal_auth(
                 code = %code,
                 "portal_auth: token DB lookup returned Invalid"
             );
-            Ok(render(&portal_template(
-                &state,
-                Some("portal.error.invalid".to_string()),
-                state.portal_csrf_store.generate(&client.mac),
-            ).await)?.into_response())
+            Ok(render(
+                &portal_template(
+                    &state,
+                    Some("portal.error.invalid".to_string()),
+                    state.portal_csrf_store.generate(&client.mac),
+                )
+                .await,
+            )?
+            .into_response())
         }
     }
 }
@@ -293,7 +326,10 @@ async fn success_page(
     State(state): State<Arc<AppState>>,
     client: ClientInfo,
 ) -> Result<impl IntoResponse, AppError> {
-    let session = state.db.get_session_by_mac(&client.mac).await
+    let session = state
+        .db
+        .get_session_by_mac(&client.mac)
+        .await
         .map_err(AppError::Internal)?;
 
     match session {
@@ -310,7 +346,8 @@ async fn success_page(
                     plan_name: s.plan_name(),
                     cafe_name: portal.cafe_name,
                     theme_css,
-                })?.into_response())
+                })?
+                .into_response())
             } else {
                 Ok(Redirect::to("/portal").into_response())
             }
@@ -320,9 +357,7 @@ async fn success_page(
 }
 
 /// GET /portal/expired -- "session expired" page
-async fn expired_page(
-    State(state): State<Arc<AppState>>,
-) -> Result<impl IntoResponse, AppError> {
+async fn expired_page(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse, AppError> {
     let portal = super::admin::portal_config_from_db(&state).await;
     let theme_css = portal.generate_theme_css();
     render(&ExpiredTemplate {
@@ -347,7 +382,10 @@ async fn status_page(
     State(state): State<Arc<AppState>>,
     client: ClientInfo,
 ) -> Result<impl IntoResponse, AppError> {
-    let session = state.db.get_session_by_mac(&client.mac).await
+    let session = state
+        .db
+        .get_session_by_mac(&client.mac)
+        .await
         .map_err(AppError::Internal)?;
 
     let portal = super::admin::portal_config_from_db(&state).await;
@@ -392,7 +430,10 @@ async fn portal_status(
     State(state): State<Arc<AppState>>,
     client: ClientInfo,
 ) -> Result<impl IntoResponse, AppError> {
-    let session = state.db.get_session_by_mac(&client.mac).await
+    let session = state
+        .db
+        .get_session_by_mac(&client.mac)
+        .await
         .map_err(AppError::Internal)?;
 
     let response = match session {
@@ -413,9 +454,7 @@ async fn portal_status(
 }
 
 /// GET /portal/privacy — privacy notice
-async fn privacy_page(
-    State(state): State<Arc<AppState>>,
-) -> Result<impl IntoResponse, AppError> {
+async fn privacy_page(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse, AppError> {
     let portal = super::admin::portal_config_from_db(&state).await;
     let theme_css = portal.generate_theme_css();
     render(&PrivacyTemplate {
@@ -425,10 +464,11 @@ async fn privacy_page(
 }
 
 /// GET /portal/plans — public page listing active plans and contact info
-async fn plans_page(
-    State(state): State<Arc<AppState>>,
-) -> Result<impl IntoResponse, AppError> {
-    let plans = state.db.list_active_plans().await
+async fn plans_page(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse, AppError> {
+    let plans = state
+        .db
+        .list_active_plans()
+        .await
         .map_err(AppError::Internal)?;
     let portal = super::admin::portal_config_from_db(&state).await;
     let theme_css = portal.generate_theme_css();
@@ -455,13 +495,13 @@ fn compute_total_seconds(started_at: &str, expires_at: &str) -> i64 {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use axum::http::StatusCode;
     use http_body_util::BodyExt;
+    use std::sync::Arc;
     use tower::ServiceExt;
 
-    use crate::test_utils::{test_state, test_get, test_post_form};
     use crate::firewall::MockFirewall;
+    use crate::test_utils::{test_get, test_post_form, test_state};
 
     /// Build the portal router for testing.
     fn portal_router(state: std::sync::Arc<crate::AppState>) -> axum::Router {
@@ -486,11 +526,16 @@ mod tests {
     async fn test_portal_auth_invalid_format() {
         let state = test_state().await;
         // Seed CSRF store for the test client MAC
-        state.portal_csrf_store.set("02:00:00:00:00:01", "test-csrf");
+        state
+            .portal_csrf_store
+            .set("02:00:00:00:00:01", "test-csrf");
         let app = portal_router(state);
 
         let response = app
-            .oneshot(test_post_form("/portal/auth", "token=BADTOKEN&csrf_token=test-csrf"))
+            .oneshot(test_post_form(
+                "/portal/auth",
+                "token=BADTOKEN&csrf_token=test-csrf",
+            ))
             .await
             .unwrap();
 
@@ -503,11 +548,16 @@ mod tests {
     #[tokio::test]
     async fn test_portal_auth_valid_format_nonexistent_token() {
         let state = test_state().await;
-        state.portal_csrf_store.set("02:00:00:00:00:01", "test-csrf");
+        state
+            .portal_csrf_store
+            .set("02:00:00:00:00:01", "test-csrf");
         let app = portal_router(state);
 
         let response = app
-            .oneshot(test_post_form("/portal/auth", "token=DIDI-ABCD-EF23&csrf_token=test-csrf"))
+            .oneshot(test_post_form(
+                "/portal/auth",
+                "token=DIDI-ABCD-EF23&csrf_token=test-csrf",
+            ))
             .await
             .unwrap();
 
@@ -523,27 +573,46 @@ mod tests {
 
         // Setup: create plan + token
         let plan_id = state.db.create_plan("1h WiFi", 60, 1000).await.unwrap();
-        state.db.create_token("DIDI-ABCD-EF23", None, plan_id).await.unwrap();
+        state
+            .db
+            .create_token("DIDI-ABCD-EF23", None, plan_id)
+            .await
+            .unwrap();
 
         // Seed CSRF store with a known token
-        state.portal_csrf_store.set("02:00:00:00:00:01", "my-csrf-token");
+        state
+            .portal_csrf_store
+            .set("02:00:00:00:00:01", "my-csrf-token");
 
         // POST valid token with correct CSRF
         let app = portal_router(Arc::clone(&state));
         let response = app
-            .oneshot(test_post_form("/portal/auth", "token=DIDI-ABCD-EF23&csrf_token=my-csrf-token"))
+            .oneshot(test_post_form(
+                "/portal/auth",
+                "token=DIDI-ABCD-EF23&csrf_token=my-csrf-token",
+            ))
             .await
             .unwrap();
 
         // Should redirect to /portal/success
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         assert_eq!(
-            response.headers().get("location").unwrap().to_str().unwrap(),
+            response
+                .headers()
+                .get("location")
+                .unwrap()
+                .to_str()
+                .unwrap(),
             "/portal/success"
         );
 
         // Verify: token is now active
-        let token = state.db.get_token_by_code("DIDI-ABCD-EF23").await.unwrap().unwrap();
+        let token = state
+            .db
+            .get_token_by_code("DIDI-ABCD-EF23")
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(token.status, crate::db::TokenStatus::Active);
 
         // Verify: session was created
@@ -552,7 +621,9 @@ mod tests {
 
         // Verify: firewall was called
         let fw = state.firewall.as_ref();
-        let mock = fw.as_any().downcast_ref::<MockFirewall>()
+        let mock = fw
+            .as_any()
+            .downcast_ref::<MockFirewall>()
             .expect("firewall should be MockFirewall in tests");
         let calls = mock.calls();
         assert_eq!(calls.len(), 1);
@@ -562,11 +633,16 @@ mod tests {
     async fn test_portal_auth_csrf_invalid() {
         let state = test_state().await;
         // Seed with a different token than what we'll submit
-        state.portal_csrf_store.set("02:00:00:00:00:01", "correct-token");
+        state
+            .portal_csrf_store
+            .set("02:00:00:00:00:01", "correct-token");
         let app = portal_router(state);
 
         let response = app
-            .oneshot(test_post_form("/portal/auth", "token=DIDI-ABCD-EF23&csrf_token=wrong-token"))
+            .oneshot(test_post_form(
+                "/portal/auth",
+                "token=DIDI-ABCD-EF23&csrf_token=wrong-token",
+            ))
             .await
             .unwrap();
 
@@ -583,7 +659,10 @@ mod tests {
         let app = portal_router(state);
 
         let response = app
-            .oneshot(test_post_form("/portal/auth", "token=DIDI-ABCD-EF23&csrf_token=whatever"))
+            .oneshot(test_post_form(
+                "/portal/auth",
+                "token=DIDI-ABCD-EF23&csrf_token=whatever",
+            ))
             .await
             .unwrap();
 
@@ -620,8 +699,14 @@ mod tests {
 
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let html = String::from_utf8_lossy(&body);
-        assert!(html.contains("status.no_session"), "expected no-session i18n key");
-        assert!(html.contains(r#"href="/portal""#), "expected CTA link to /portal");
+        assert!(
+            html.contains("status.no_session"),
+            "expected no-session i18n key"
+        );
+        assert!(
+            html.contains(r#"href="/portal""#),
+            "expected CTA link to /portal"
+        );
         // No countdown widget when not connected.
         assert!(!html.contains(r#"id="countdown""#));
     }
@@ -631,10 +716,20 @@ mod tests {
     async fn test_status_page_active_session_renders_countdown() {
         let state = test_state().await;
         let plan_id = state.db.create_plan("1h WiFi", 60, 1000).await.unwrap();
-        let token_id = state.db.create_token("DIDI-ABCD-EF23", None, plan_id).await.unwrap();
+        let token_id = state
+            .db
+            .create_token("DIDI-ABCD-EF23", None, plan_id)
+            .await
+            .unwrap();
         crate::services::session::create_session(
-            &state, token_id, 60, "02:00:00:00:00:01", "127.0.0.1",
-        ).await.unwrap();
+            &state,
+            token_id,
+            60,
+            "02:00:00:00:00:01",
+            "127.0.0.1",
+        )
+        .await
+        .unwrap();
 
         let app = portal_router(Arc::clone(&state));
         let response = app.oneshot(test_get("/portal/status")).await.unwrap();
@@ -642,7 +737,10 @@ mod tests {
 
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let html = String::from_utf8_lossy(&body);
-        assert!(html.contains(r#"id="countdown""#), "expected countdown widget");
+        assert!(
+            html.contains(r#"id="countdown""#),
+            "expected countdown widget"
+        );
         assert!(html.contains("status.remaining"));
         assert!(html.contains("data-remaining="));
     }
@@ -667,7 +765,12 @@ mod tests {
         // No session -> redirect to /portal
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         assert_eq!(
-            response.headers().get("location").unwrap().to_str().unwrap(),
+            response
+                .headers()
+                .get("location")
+                .unwrap()
+                .to_str()
+                .unwrap(),
             "/portal"
         );
     }
@@ -678,12 +781,22 @@ mod tests {
 
         // Setup: create plan + token + first session (simulates initial connect)
         let plan_id = state.db.create_plan("1h WiFi", 60, 1000).await.unwrap();
-        let token_id = state.db.create_token("DIDI-ABCD-EF23", None, plan_id).await.unwrap();
+        let token_id = state
+            .db
+            .create_token("DIDI-ABCD-EF23", None, plan_id)
+            .await
+            .unwrap();
 
         // Simulate first session on old MAC
         crate::services::session::create_session(
-            &state, token_id, 60, "aa:bb:cc:dd:ee:01", "10.10.0.5",
-        ).await.unwrap();
+            &state,
+            token_id,
+            60,
+            "aa:bb:cc:dd:ee:01",
+            "10.10.0.5",
+        )
+        .await
+        .unwrap();
 
         // Verify: 1 active session, token is active
         let sessions = state.db.get_active_sessions().await.unwrap();
@@ -691,17 +804,27 @@ mod tests {
         assert_eq!(sessions[0].mac_address, "aa:bb:cc:dd:ee:01");
 
         // Now client reconnects with new MAC (randomized), re-enters same token
-        state.portal_csrf_store.set("02:00:00:00:00:01", "csrf-migrate");
+        state
+            .portal_csrf_store
+            .set("02:00:00:00:00:01", "csrf-migrate");
         let app = portal_router(Arc::clone(&state));
         let response = app
-            .oneshot(test_post_form("/portal/auth", "token=DIDI-ABCD-EF23&csrf_token=csrf-migrate"))
+            .oneshot(test_post_form(
+                "/portal/auth",
+                "token=DIDI-ABCD-EF23&csrf_token=csrf-migrate",
+            ))
             .await
             .unwrap();
 
         // Should redirect to /portal/success (migration succeeded)
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         assert_eq!(
-            response.headers().get("location").unwrap().to_str().unwrap(),
+            response
+                .headers()
+                .get("location")
+                .unwrap()
+                .to_str()
+                .unwrap(),
             "/portal/success"
         );
 
@@ -711,12 +834,19 @@ mod tests {
         assert_eq!(sessions[0].mac_address, "02:00:00:00:00:01");
 
         // Verify: token is still active (not consumed twice)
-        let token = state.db.get_token_by_code("DIDI-ABCD-EF23").await.unwrap().unwrap();
+        let token = state
+            .db
+            .get_token_by_code("DIDI-ABCD-EF23")
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(token.status, crate::db::TokenStatus::Active);
 
         // Verify: firewall was called (authorize old + deauthorize old + authorize new)
         let fw = state.firewall.as_ref();
-        let mock = fw.as_any().downcast_ref::<MockFirewall>()
+        let mock = fw
+            .as_any()
+            .downcast_ref::<MockFirewall>()
             .expect("firewall should be MockFirewall in tests");
         let calls = mock.calls();
         // 1: authorize_mac(old), 2: deauthorize_mac(old), 3: authorize_mac(new)
@@ -729,14 +859,27 @@ mod tests {
 
         // Setup: create plan + token, then expire it
         let plan_id = state.db.create_plan("1h WiFi", 60, 1000).await.unwrap();
-        let token_id = state.db.create_token("DIDI-EXPD-TK23", None, plan_id).await.unwrap();
-        state.db.redeem_token(token_id, "2020-01-01 00:00:00").await.unwrap();
+        let token_id = state
+            .db
+            .create_token("DIDI-EXPD-TK23", None, plan_id)
+            .await
+            .unwrap();
+        state
+            .db
+            .redeem_token(token_id, "2020-01-01 00:00:00")
+            .await
+            .unwrap();
         state.db.expire_token(token_id).await.unwrap();
 
-        state.portal_csrf_store.set("02:00:00:00:00:01", "csrf-expired");
+        state
+            .portal_csrf_store
+            .set("02:00:00:00:00:01", "csrf-expired");
         let app = portal_router(Arc::clone(&state));
         let response = app
-            .oneshot(test_post_form("/portal/auth", "token=DIDI-EXPD-TK23&csrf_token=csrf-expired"))
+            .oneshot(test_post_form(
+                "/portal/auth",
+                "token=DIDI-EXPD-TK23&csrf_token=csrf-expired",
+            ))
             .await
             .unwrap();
 
@@ -769,7 +912,11 @@ mod tests {
         state.db.create_plan("30min WiFi", 30, 500).await.unwrap();
         state.db.create_plan("1h WiFi", 60, 1000).await.unwrap();
         let id3 = state.db.create_plan("2h WiFi", 120, 2000).await.unwrap();
-        state.db.update_plan(id3, "2h WiFi", 120, 2000, false).await.unwrap();
+        state
+            .db
+            .update_plan(id3, "2h WiFi", 120, 2000, false)
+            .await
+            .unwrap();
 
         let app = portal_router(Arc::clone(&state));
         let response = app.oneshot(test_get("/portal/plans")).await.unwrap();

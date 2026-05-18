@@ -5,9 +5,9 @@ use std::pin::Pin;
 use tokio::process::Command;
 use tracing::{debug, warn};
 
+use super::Firewall;
 use crate::config::FirewallConfig;
 use crate::net::mac::validate_mac;
-use super::Firewall;
 
 /// Controls nftables rules via the `nft` CLI.
 ///

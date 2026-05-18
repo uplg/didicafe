@@ -1,6 +1,6 @@
-use std::sync::Arc;
 use anyhow::Result;
 use chrono::Utc;
+use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
@@ -21,16 +21,21 @@ pub async fn create_session(
     mac: &str,
     ip: &str,
 ) -> Result<i64> {
-    let expires_at = Utc::now()
-        + chrono::Duration::minutes(duration_minutes);
+    let expires_at = Utc::now() + chrono::Duration::minutes(duration_minutes);
     let expires_str = expires_at.format("%Y-%m-%d %H:%M:%S").to_string();
     let timeout_secs = (duration_minutes * 60) as u64;
 
     // 1. Add MAC+IP to nftables with timeout (fail here = token not consumed)
-    state.firewall.authorize_client(mac, ip, timeout_secs).await?;
+    state
+        .firewall
+        .authorize_client(mac, ip, timeout_secs)
+        .await?;
 
     // 2. Create session record
-    let session_id = state.db.create_session(token_id, mac, ip, &expires_str).await?;
+    let session_id = state
+        .db
+        .create_session(token_id, mac, ip, &expires_str)
+        .await?;
 
     // 3. Mark token as active (consumed — no going back)
     state.db.redeem_token(token_id, &expires_str).await?;
@@ -47,10 +52,16 @@ pub async fn create_session(
 
 /// Force-disconnect a session: remove MAC from nftables, update DB.
 pub async fn disconnect(state: &Arc<AppState>, session_id: i64) -> Result<()> {
-    let session = state.db.get_session_by_id(session_id).await?
+    let session = state
+        .db
+        .get_session_by_id(session_id)
+        .await?
         .ok_or_else(|| anyhow::anyhow!("session {session_id} not found"))?;
 
-    state.firewall.deauthorize_client(&session.mac_address, &session.ip_address).await?;
+    state
+        .firewall
+        .deauthorize_client(&session.mac_address, &session.ip_address)
+        .await?;
     state.db.disconnect_session(session_id).await?;
     info!(session_id, "session disconnected");
 
@@ -79,7 +90,10 @@ pub async fn migrate_session(
     new_mac: &str,
     new_ip: &str,
 ) -> Result<i64> {
-    let old_session = state.db.get_active_session_by_token(token_id).await?
+    let old_session = state
+        .db
+        .get_active_session_by_token(token_id)
+        .await?
         .ok_or_else(|| anyhow::anyhow!("no active session for token {token_id}"))?;
 
     let remaining = old_session.remaining_seconds();
@@ -88,7 +102,11 @@ pub async fn migrate_session(
     }
 
     // 1. Deauthorize old MAC+IP (ignore errors — may already be gone after outage)
-    if let Err(e) = state.firewall.deauthorize_client(&old_session.mac_address, &old_session.ip_address).await {
+    if let Err(e) = state
+        .firewall
+        .deauthorize_client(&old_session.mac_address, &old_session.ip_address)
+        .await
+    {
         warn!(
             session_id = old_session.id,
             old_mac = %old_session.mac_address,
@@ -101,15 +119,16 @@ pub async fn migrate_session(
 
     // 3. Authorize new MAC+IP with remaining time
     let timeout_secs = remaining as u64;
-    state.firewall.authorize_client(new_mac, new_ip, timeout_secs).await?;
+    state
+        .firewall
+        .authorize_client(new_mac, new_ip, timeout_secs)
+        .await?;
 
     // 4. Create new session with the original expiry time
-    let session_id = state.db.create_session(
-        token_id,
-        new_mac,
-        new_ip,
-        &old_session.expires_at,
-    ).await?;
+    let session_id = state
+        .db
+        .create_session(token_id, new_mac, new_ip, &old_session.expires_at)
+        .await?;
 
     info!(
         old_session_id = old_session.id,
@@ -129,9 +148,7 @@ pub async fn cleanup_ticker(state: Arc<AppState>, shutdown: CancellationToken) {
     let interval = state.config.session.cleanup_interval_seconds;
     let grace = state.config.session.grace_period_seconds;
 
-    let mut ticker = tokio::time::interval(
-        tokio::time::Duration::from_secs(interval)
-    );
+    let mut ticker = tokio::time::interval(tokio::time::Duration::from_secs(interval));
 
     // Track when we last did a full purge (once per hour is enough)
     let mut last_purge = tokio::time::Instant::now();
@@ -153,7 +170,11 @@ pub async fn cleanup_ticker(state: Arc<AppState>, shutdown: CancellationToken) {
                     let remaining = session.remaining_seconds();
                     if remaining <= -grace {
                         // Session has expired past the grace period — remove from firewall
-                        if let Err(e) = state.firewall.deauthorize_client(&session.mac_address, &session.ip_address).await {
+                        if let Err(e) = state
+                            .firewall
+                            .deauthorize_client(&session.mac_address, &session.ip_address)
+                            .await
+                        {
                             warn!(
                                 session_id = session.id,
                                 mac = %session.mac_address,
@@ -169,10 +190,7 @@ pub async fn cleanup_ticker(state: Arc<AppState>, shutdown: CancellationToken) {
                         if let Err(e) = state.db.expire_token(session.token_id).await {
                             warn!(token_id = session.token_id, "failed to expire token: {e}");
                         }
-                        info!(
-                            session_id = session.id,
-                            "session expired (cleanup)"
-                        );
+                        info!(session_id = session.id, "session expired (cleanup)");
                     }
                 }
             }

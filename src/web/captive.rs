@@ -28,11 +28,11 @@ use axum::{
 };
 use serde::Serialize;
 
+use super::error::AppError;
 use crate::AppState;
 use crate::config::Config;
 use crate::net::arp;
 use crate::net::mac::is_valid_mac;
-use super::error::AppError;
 
 /// Content type defined in RFC 8908 §6.
 pub const CAPPORT_CONTENT_TYPE: &str = "application/captive+json";
@@ -79,7 +79,10 @@ async fn captive_api(
     let mac = resolve_client_mac(addr.ip()).await;
 
     let session = match mac {
-        Some(ref m) => state.db.get_session_by_mac(m).await
+        Some(ref m) => state
+            .db
+            .get_session_by_mac(m)
+            .await
             .map_err(AppError::Internal)?,
         None => None,
     };
@@ -194,10 +197,7 @@ mod tests {
 
         assert_eq!(json["captive"], true);
         assert_eq!(json["can-extend-session"], false);
-        assert_eq!(
-            json["user-portal-url"],
-            "http://wifi.didicafe:8080/portal"
-        );
+        assert_eq!(json["user-portal-url"], "http://wifi.didicafe:8080/portal");
         assert_eq!(
             json["venue-info-url"],
             "http://wifi.didicafe:8080/portal/plans"
@@ -252,9 +252,17 @@ mod tests {
         assert_eq!(json["captive"], false);
         let remaining = json["seconds-remaining"].as_i64().unwrap();
         assert!(remaining > 0, "expected remaining > 0, got {remaining}");
-        assert!(remaining <= 3600, "expected remaining ≤ 3600, got {remaining}");
+        assert!(
+            remaining <= 3600,
+            "expected remaining ≤ 3600, got {remaining}"
+        );
         // Portal URL is present even when authenticated (clients can revisit)
-        assert!(json["user-portal-url"].as_str().unwrap().ends_with("/portal"));
+        assert!(
+            json["user-portal-url"]
+                .as_str()
+                .unwrap()
+                .ends_with("/portal")
+        );
     }
 
     #[tokio::test]
@@ -303,7 +311,9 @@ mod tests {
             firewall: Arc::new(crate::firewall::MockFirewall::new()),
             admin_sessions: crate::services::admin_session::AdminSessionStore::new(3600),
             rate_limiter: crate::services::rate_limit::RateLimiter::new(&base.config.rate_limit),
-            admin_rate_limiter: crate::services::rate_limit::RateLimiter::new(&base.config.rate_limit),
+            admin_rate_limiter: crate::services::rate_limit::RateLimiter::new(
+                &base.config.rate_limit,
+            ),
             portal_csrf_store: crate::services::csrf::PortalCsrfStore::new(),
             login_csrf_store: crate::services::csrf::PortalCsrfStore::new(),
         });

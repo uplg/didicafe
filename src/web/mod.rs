@@ -1,21 +1,21 @@
-pub mod error;
-pub mod extractors;
-pub mod portal;
 pub mod admin;
 pub mod api;
 pub mod captive;
 pub mod cpd;
+pub mod error;
+pub mod extractors;
+pub mod portal;
 
 pub use error::AppError;
 
+use axum::extract::{ConnectInfo, Request, State};
+use axum::http::HeaderValue;
+use axum::middleware::{self, Next};
+use axum::response::{IntoResponse, Response};
+use axum::{Router, response::Redirect, routing::any};
 use std::collections::BTreeMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use axum::{Router, response::Redirect, routing::any};
-use axum::middleware::{self, Next};
-use axum::http::HeaderValue;
-use axum::response::{IntoResponse, Response};
-use axum::extract::{ConnectInfo, Request, State};
 use tower_http::services::ServeDir;
 
 use crate::AppState;
@@ -42,7 +42,10 @@ pub struct I18nMessage {
 
 impl I18nMessage {
     /// Create a message with interpolation arguments from key-value pairs.
-    pub fn with_args(key: impl Into<String>, args: impl IntoIterator<Item = (&'static str, String)>) -> Self {
+    pub fn with_args(
+        key: impl Into<String>,
+        args: impl IntoIterator<Item = (&'static str, String)>,
+    ) -> Self {
         Self {
             key: key.into(),
             args: args.into_iter().map(|(k, v)| (k.to_string(), v)).collect(),
@@ -57,7 +60,9 @@ impl I18nMessage {
         }
         // Manual JSON construction to avoid serde dependency for this small case.
         // BTreeMap iteration order is deterministic (sorted by key).
-        let pairs: Vec<String> = self.args.iter()
+        let pairs: Vec<String> = self
+            .args
+            .iter()
             .map(|(k, v)| {
                 // Escape double quotes and backslashes in values for JSON safety
                 let escaped = v.replace('\\', "\\\\").replace('"', "\\\"");
@@ -79,8 +84,8 @@ impl I18nMessage {
 /// - `Permissions-Policy` — restrict access to device APIs
 /// - `Cache-Control: no-store` on admin/api paths — prevent caching of sensitive data
 async fn security_headers(request: Request, next: Next) -> Response {
-    let is_sensitive = request.uri().path().starts_with("/admin")
-        || request.uri().path().starts_with("/api");
+    let is_sensitive =
+        request.uri().path().starts_with("/admin") || request.uri().path().starts_with("/api");
     let is_static = request.uri().path().starts_with("/static");
 
     let mut response = next.run(request).await;
@@ -90,10 +95,7 @@ async fn security_headers(request: Request, next: Next) -> Response {
         "X-Content-Type-Options",
         HeaderValue::from_static("nosniff"),
     );
-    headers.insert(
-        "X-Frame-Options",
-        HeaderValue::from_static("DENY"),
-    );
+    headers.insert("X-Frame-Options", HeaderValue::from_static("DENY"));
     headers.insert(
         "Content-Security-Policy",
         HeaderValue::from_static(
@@ -104,10 +106,7 @@ async fn security_headers(request: Request, next: Next) -> Response {
         "Referrer-Policy",
         HeaderValue::from_static("strict-origin-when-cross-origin"),
     );
-    headers.insert(
-        "X-XSS-Protection",
-        HeaderValue::from_static("0"),
-    );
+    headers.insert("X-XSS-Protection", HeaderValue::from_static("0"));
     headers.insert(
         "Permissions-Policy",
         HeaderValue::from_static("camera=(), microphone=(), geolocation=(), payment=(), usb=()"),
@@ -119,10 +118,7 @@ async fn security_headers(request: Request, next: Next) -> Response {
             "Cache-Control",
             HeaderValue::from_static("no-store, no-cache, must-revalidate"),
         );
-        headers.insert(
-            "Pragma",
-            HeaderValue::from_static("no-cache"),
-        );
+        headers.insert("Pragma", HeaderValue::from_static("no-cache"));
     } else if is_static {
         // Browser may cache, but MUST revalidate every request. ServeDir sets
         // `Last-Modified` from the file mtime, so revalidation is a cheap
@@ -189,10 +185,7 @@ async fn admin_network_filter(
         let is_allowed = allowed.iter().any(|cidr| ip_in_cidr(client_ip, cidr));
         if !is_allowed {
             tracing::warn!(%client_ip, "admin access denied: IP not in allowed_networks");
-            return (
-                axum::http::StatusCode::FORBIDDEN,
-                "access denied",
-            ).into_response();
+            return (axum::http::StatusCode::FORBIDDEN, "access denied").into_response();
         }
     }
 
@@ -220,7 +213,10 @@ pub fn portal_router(state: Arc<AppState>) -> Router {
         // stray HTTP requests DNATed by nftables.
         .fallback(any(|| async { Redirect::to("/portal") }))
         // Captive-Portal header (RFC 8908 §4) on all portal-side responses
-        .layer(middleware::from_fn_with_state(Arc::clone(&state), captive_portal_header))
+        .layer(middleware::from_fn_with_state(
+            Arc::clone(&state),
+            captive_portal_header,
+        ))
         // Security headers on all responses
         .layer(middleware::from_fn(security_headers))
         .with_state(state)
@@ -244,7 +240,10 @@ pub fn admin_router(state: Arc<AppState>) -> Router {
         // Catch-all: redirect to admin login
         .fallback(any(|| async { Redirect::to("/admin/login") }))
         // Admin IP allowlist (runs before request processing)
-        .layer(middleware::from_fn_with_state(Arc::clone(&state), admin_network_filter))
+        .layer(middleware::from_fn_with_state(
+            Arc::clone(&state),
+            admin_network_filter,
+        ))
         // HSTS header (only on the HTTPS listener)
         .layer(middleware::from_fn(hsts_header))
         // Security headers on all responses
@@ -275,7 +274,10 @@ pub fn combined_router(state: Arc<AppState>) -> Router {
         // Catch-all: any unmatched route redirects to the portal.
         .fallback(any(|| async { Redirect::to("/portal") }))
         // Captive-Portal header (RFC 8908 §4)
-        .layer(middleware::from_fn_with_state(Arc::clone(&state), captive_portal_header))
+        .layer(middleware::from_fn_with_state(
+            Arc::clone(&state),
+            captive_portal_header,
+        ))
         // Security headers on all responses
         .layer(middleware::from_fn(security_headers))
         .with_state(state)
@@ -321,9 +323,15 @@ mod tests {
             .to_str()
             .unwrap();
 
-        assert!(header.starts_with('<'), "header must start with '<': {header}");
+        assert!(
+            header.starts_with('<'),
+            "header must start with '<': {header}"
+        );
         assert!(header.ends_with('>'), "header must end with '>': {header}");
-        assert!(header.contains("/api/captive"), "header must reference API URL: {header}");
+        assert!(
+            header.contains("/api/captive"),
+            "header must reference API URL: {header}"
+        );
     }
 
     /// Same for the combined dev router.

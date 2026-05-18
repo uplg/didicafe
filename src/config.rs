@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
-use serde::de;
 use serde::Deserialize;
+use serde::de;
 
 /// Deserializes a value that can be either a single string or a list of strings.
 /// This allows TOML config to use either:
@@ -370,8 +370,11 @@ impl Config {
         );
         for iface in &self.server.interfaces {
             anyhow::ensure!(
-                !iface.is_empty() && iface.len() <= 15
-                    && iface.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'),
+                !iface.is_empty()
+                    && iface.len() <= 15
+                    && iface
+                        .chars()
+                        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'),
                 "server.interfaces: '{}' is not a valid Linux interface name (max 15 chars, alphanumeric/-/_)",
                 iface
             );

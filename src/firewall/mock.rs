@@ -9,8 +9,15 @@ use super::Firewall;
 /// Recorded firewall operation for test assertions.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FirewallCall {
-    Authorize { mac: String, ip: String, timeout_secs: u64 },
-    Deauthorize { mac: String, ip: String },
+    Authorize {
+        mac: String,
+        ip: String,
+        timeout_secs: u64,
+    },
+    Deauthorize {
+        mac: String,
+        ip: String,
+    },
     InitRuleset,
 }
 
@@ -33,7 +40,6 @@ impl MockFirewall {
     pub fn calls(&self) -> Vec<FirewallCall> {
         self.calls.lock().expect("mock lock poisoned").clone()
     }
-
 }
 
 impl Firewall for MockFirewall {
@@ -91,8 +97,12 @@ mod tests {
         let fw = MockFirewall::new();
 
         fw.init_ruleset().await.unwrap();
-        fw.authorize_client("AA:BB:CC:DD:EE:FF", "10.10.0.5", 3600).await.unwrap();
-        fw.deauthorize_client("AA:BB:CC:DD:EE:FF", "10.10.0.5").await.unwrap();
+        fw.authorize_client("AA:BB:CC:DD:EE:FF", "10.10.0.5", 3600)
+            .await
+            .unwrap();
+        fw.deauthorize_client("AA:BB:CC:DD:EE:FF", "10.10.0.5")
+            .await
+            .unwrap();
 
         let calls = fw.calls();
         assert_eq!(calls.len(), 3);

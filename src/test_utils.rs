@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use crate::AppState;
 use crate::config::{
-    AdminConfig, Config, DatabaseConfig, FirewallConfig, PortalConfig,
-    RateLimitConfig, ServerConfig, SessionConfig, TlsConfig, TokenConfig,
+    AdminConfig, Config, DatabaseConfig, FirewallConfig, PortalConfig, RateLimitConfig,
+    ServerConfig, SessionConfig, TlsConfig, TokenConfig,
 };
 use crate::db::Database;
 use crate::firewall::MockFirewall;

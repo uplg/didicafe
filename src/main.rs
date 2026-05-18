@@ -1,9 +1,9 @@
 use anyhow::{Context, Result};
 use clap::Parser;
-use tokio_util::sync::CancellationToken;
-use tracing::info;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
+use tracing::info;
 
 mod config;
 mod db;
@@ -16,7 +16,10 @@ mod web;
 mod test_utils;
 
 #[derive(Parser)]
-#[command(name = "didicafe", about = "Captive portal daemon for time-limited WiFi access")]
+#[command(
+    name = "didicafe",
+    about = "Captive portal daemon for time-limited WiFi access"
+)]
 struct Cli {
     /// Path to configuration file
     #[arg(short, long, default_value = "/etc/didicafe/didicafe.toml")]
@@ -90,7 +93,10 @@ async fn main() -> Result<()> {
         let remaining = session.remaining_seconds();
         if remaining > grace {
             // Session still valid - restore to firewall
-            if let Err(e) = fw.authorize_client(&session.mac_address, &session.ip_address, remaining as u64).await {
+            if let Err(e) = fw
+                .authorize_client(&session.mac_address, &session.ip_address, remaining as u64)
+                .await
+            {
                 tracing::warn!(mac = %session.mac_address, ip = %session.ip_address, "failed to restore session: {e}");
             } else {
                 restored_count += 1;
@@ -101,14 +107,21 @@ async fn main() -> Result<()> {
                 tracing::warn!(session_id = session.id, "failed to expire session: {e}");
             } else {
                 if let Err(e) = database.expire_token(session.token_id).await {
-                    tracing::warn!(session_id = session.id, token_id = session.token_id, "failed to expire token: {e}");
+                    tracing::warn!(
+                        session_id = session.id,
+                        token_id = session.token_id,
+                        "failed to expire token: {e}"
+                    );
                 }
                 expired_count += 1;
                 tracing::info!(session_id = session.id, "session expired during downtime");
             }
         }
     }
-    info!("restored {} active sessions, expired {} during downtime", restored_count, expired_count);
+    info!(
+        "restored {} active sessions, expired {} during downtime",
+        restored_count, expired_count
+    );
 
     // Purge old expired/disconnected sessions (retention policy)
     let retention = config.session.retention_days;
@@ -122,9 +135,8 @@ async fn main() -> Result<()> {
         }
     }
 
-    let admin_sessions = services::admin_session::AdminSessionStore::new(
-        config.admin.session_timeout_seconds,
-    );
+    let admin_sessions =
+        services::admin_session::AdminSessionStore::new(config.admin.session_timeout_seconds);
 
     let rate_limiter = services::rate_limit::RateLimiter::new(&config.rate_limit);
     let admin_rate_limiter = services::rate_limit::RateLimiter::new(&config.rate_limit);
@@ -230,11 +242,15 @@ fn build_tls_acceptor(tls_config: &config::TlsConfig) -> Result<tokio_rustls::Tl
     use rustls_pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject};
     use tokio_rustls::rustls::ServerConfig;
 
-    let cert_chain: Vec<CertificateDer<'static>> = CertificateDer::pem_file_iter(&tls_config.cert_path)
-        .with_context(|| format!("failed to open TLS cert: {}", tls_config.cert_path))?
-        .collect::<Result<_, _>>()
-        .with_context(|| format!("failed to parse TLS cert: {}", tls_config.cert_path))?;
-    anyhow::ensure!(!cert_chain.is_empty(), "TLS cert file contains no certificates");
+    let cert_chain: Vec<CertificateDer<'static>> =
+        CertificateDer::pem_file_iter(&tls_config.cert_path)
+            .with_context(|| format!("failed to open TLS cert: {}", tls_config.cert_path))?
+            .collect::<Result<_, _>>()
+            .with_context(|| format!("failed to parse TLS cert: {}", tls_config.cert_path))?;
+    anyhow::ensure!(
+        !cert_chain.is_empty(),
+        "TLS cert file contains no certificates"
+    );
 
     let key = PrivateKeyDer::from_pem_file(&tls_config.key_path)
         .with_context(|| format!("failed to parse TLS key: {}", tls_config.key_path))?;
@@ -388,7 +404,8 @@ VgIp3f6AltPqf0l546b8Fe678K8K7zKF4rAtx7gVzDeKG8Fa09wwG5ec
     #[test]
     fn test_build_tls_acceptor_missing_cert_file() {
         let key_file = write_temp(TEST_KEY);
-        let tls_config = make_tls_config("/nonexistent/cert.pem", key_file.path().to_str().unwrap());
+        let tls_config =
+            make_tls_config("/nonexistent/cert.pem", key_file.path().to_str().unwrap());
 
         let err = match build_tls_acceptor(&tls_config) {
             Ok(_) => panic!("expected error"),
@@ -400,7 +417,8 @@ VgIp3f6AltPqf0l546b8Fe678K8K7zKF4rAtx7gVzDeKG8Fa09wwG5ec
     #[test]
     fn test_build_tls_acceptor_missing_key_file() {
         let cert_file = write_temp(TEST_CERT);
-        let tls_config = make_tls_config(cert_file.path().to_str().unwrap(), "/nonexistent/key.pem");
+        let tls_config =
+            make_tls_config(cert_file.path().to_str().unwrap(), "/nonexistent/key.pem");
 
         let err = match build_tls_acceptor(&tls_config) {
             Ok(_) => panic!("expected error"),

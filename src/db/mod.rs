@@ -23,39 +23,33 @@ use sqlx::sqlite::SqlitePoolOptions;
 // they feed enforcement logic (redemption, revocation) which acts on the
 // stored state, not on the displayed state.
 
-const TOKEN_BY_CODE: &str =
-    "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
+const TOKEN_BY_CODE: &str = "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
             t.redeemed_at, t.expires_at, p.duration_minutes, p.name as plan_name \
      FROM token t JOIN plan p ON t.plan_id = p.id WHERE t.code = ?1";
 
-const TOKEN_BY_ID: &str =
-    "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
+const TOKEN_BY_ID: &str = "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
             t.redeemed_at, t.expires_at, p.duration_minutes, p.name as plan_name \
      FROM token t JOIN plan p ON t.plan_id = p.id WHERE t.id = ?1";
 
-const TOKEN_LIST: &str =
-    "SELECT t.id, t.code, t.name, t.plan_id, \
+const TOKEN_LIST: &str = "SELECT t.id, t.code, t.name, t.plan_id, \
             CASE WHEN t.status = 'active' AND t.expires_at <= datetime('now') \
                  THEN 'expired' ELSE t.status END as status, \
             t.created_at, t.redeemed_at, t.expires_at, p.duration_minutes, p.name as plan_name \
      FROM token t JOIN plan p ON t.plan_id = p.id ORDER BY t.created_at DESC";
 
 /// Filters by raw status (used for 'unused' / 'revoked' — independent of expires_at).
-const TOKEN_LIST_BY_STATUS: &str =
-    "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
+const TOKEN_LIST_BY_STATUS: &str = "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
             t.redeemed_at, t.expires_at, p.duration_minutes, p.name as plan_name \
      FROM token t JOIN plan p ON t.plan_id = p.id WHERE t.status = ?1 ORDER BY t.created_at DESC";
 
 /// Effectively-active tokens: redeemed and not yet past expiration.
-const TOKEN_LIST_ACTIVE: &str =
-    "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
+const TOKEN_LIST_ACTIVE: &str = "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
             t.redeemed_at, t.expires_at, p.duration_minutes, p.name as plan_name \
      FROM token t JOIN plan p ON t.plan_id = p.id \
      WHERE t.status = 'active' AND t.expires_at > datetime('now') ORDER BY t.created_at DESC";
 
 /// Effectively-expired tokens: explicitly expired, OR active-but-past-expiration.
-const TOKEN_LIST_EXPIRED: &str =
-    "SELECT t.id, t.code, t.name, t.plan_id, 'expired' as status, t.created_at, \
+const TOKEN_LIST_EXPIRED: &str = "SELECT t.id, t.code, t.name, t.plan_id, 'expired' as status, t.created_at, \
             t.redeemed_at, t.expires_at, p.duration_minutes, p.name as plan_name \
      FROM token t JOIN plan p ON t.plan_id = p.id \
      WHERE t.status = 'expired' \
@@ -63,8 +57,7 @@ const TOKEN_LIST_EXPIRED: &str =
      ORDER BY t.created_at DESC";
 
 /// Tokens that are unused or effectively active (the default admin view — what matters day-to-day).
-const TOKEN_LIST_CURRENT: &str =
-    "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
+const TOKEN_LIST_CURRENT: &str = "SELECT t.id, t.code, t.name, t.plan_id, t.status, t.created_at, \
             t.redeemed_at, t.expires_at, p.duration_minutes, p.name as plan_name \
      FROM token t JOIN plan p ON t.plan_id = p.id \
      WHERE t.status = 'unused' \
@@ -75,15 +68,12 @@ const TOKEN_COUNT_ALL: &str = "SELECT COUNT(*) FROM token";
 const TOKEN_COUNT_BY_STATUS: &str = "SELECT COUNT(*) FROM token WHERE status = ?1";
 const TOKEN_COUNT_ACTIVE: &str =
     "SELECT COUNT(*) FROM token WHERE status = 'active' AND expires_at > datetime('now')";
-const TOKEN_COUNT_EXPIRED: &str =
-    "SELECT COUNT(*) FROM token \
+const TOKEN_COUNT_EXPIRED: &str = "SELECT COUNT(*) FROM token \
      WHERE status = 'expired' OR (status = 'active' AND expires_at <= datetime('now'))";
-const TOKEN_COUNT_CURRENT: &str =
-    "SELECT COUNT(*) FROM token \
+const TOKEN_COUNT_CURRENT: &str = "SELECT COUNT(*) FROM token \
      WHERE status = 'unused' OR (status = 'active' AND expires_at > datetime('now'))";
 
-const SESSION_ACTIVE: &str =
-    "SELECT s.id, s.token_id, s.mac_address, s.ip_address, s.started_at, s.expires_at, s.status, \
+const SESSION_ACTIVE: &str = "SELECT s.id, s.token_id, s.mac_address, s.ip_address, s.started_at, s.expires_at, s.status, \
             t.code as token_code, t.name as token_name, p.name as plan_name \
      FROM session s JOIN token t ON s.token_id = t.id JOIN plan p ON t.plan_id = p.id WHERE s.status = 'active'";
 
@@ -91,8 +81,7 @@ const SESSION_ACTIVE: &str =
 /// The cleanup ticker uses `SESSION_ACTIVE` (raw) — it needs to *find* expired-
 /// but-uncleaned rows in order to clean them up. The admin uses this — it must
 /// not show users who are already disconnected at the firewall.
-const SESSION_LIVE: &str =
-    "SELECT s.id, s.token_id, s.mac_address, s.ip_address, s.started_at, s.expires_at, s.status, \
+const SESSION_LIVE: &str = "SELECT s.id, s.token_id, s.mac_address, s.ip_address, s.started_at, s.expires_at, s.status, \
             t.code as token_code, t.name as token_name, p.name as plan_name \
      FROM session s JOIN token t ON s.token_id = t.id JOIN plan p ON t.plan_id = p.id \
      WHERE s.status = 'active' AND s.expires_at > datetime('now')";
@@ -103,20 +92,17 @@ const SESSION_LIVE: &str =
 /// and the user may have already redeemed a fresh token. Without these guards,
 /// SQLite would return the older expired-by-clock row in rowid order, and the
 /// portal would treat the user as having no live session.
-const SESSION_BY_MAC: &str =
-    "SELECT s.id, s.token_id, s.mac_address, s.ip_address, s.started_at, s.expires_at, s.status, \
+const SESSION_BY_MAC: &str = "SELECT s.id, s.token_id, s.mac_address, s.ip_address, s.started_at, s.expires_at, s.status, \
             t.code as token_code, t.name as token_name, p.name as plan_name \
      FROM session s JOIN token t ON s.token_id = t.id JOIN plan p ON t.plan_id = p.id \
      WHERE s.mac_address = ?1 AND s.status = 'active' AND s.expires_at > datetime('now') \
      ORDER BY s.id DESC LIMIT 1";
 
-const SESSION_BY_ID: &str =
-    "SELECT s.id, s.token_id, s.mac_address, s.ip_address, s.started_at, s.expires_at, s.status, \
+const SESSION_BY_ID: &str = "SELECT s.id, s.token_id, s.mac_address, s.ip_address, s.started_at, s.expires_at, s.status, \
             t.code as token_code, t.name as token_name, p.name as plan_name \
      FROM session s JOIN token t ON s.token_id = t.id JOIN plan p ON t.plan_id = p.id WHERE s.id = ?1";
 
-const SESSION_BY_TOKEN: &str =
-    "SELECT s.id, s.token_id, s.mac_address, s.ip_address, s.started_at, s.expires_at, s.status, \
+const SESSION_BY_TOKEN: &str = "SELECT s.id, s.token_id, s.mac_address, s.ip_address, s.started_at, s.expires_at, s.status, \
             t.code as token_code, t.name as token_name, p.name as plan_name \
      FROM session s JOIN token t ON s.token_id = t.id JOIN plan p ON t.plan_id = p.id WHERE s.token_id = ?1 AND s.status = 'active'";
 
@@ -151,9 +137,7 @@ impl Database {
         sqlx::query("PRAGMA journal_mode=WAL")
             .execute(&pool)
             .await?;
-        sqlx::query("PRAGMA foreign_keys=ON")
-            .execute(&pool)
-            .await?;
+        sqlx::query("PRAGMA foreign_keys=ON").execute(&pool).await?;
 
         Ok(Self { pool })
     }
@@ -352,9 +336,7 @@ impl Database {
                 .await?;
             count
         } else {
-            let (count,): (i64,) = sqlx::query_as(count_query)
-                .fetch_one(&self.pool)
-                .await?;
+            let (count,): (i64,) = sqlx::query_as(count_query).fetch_one(&self.pool).await?;
             count
         };
 
@@ -580,12 +562,11 @@ impl Database {
 
     /// Purge audit log entries older than `retention_days`.
     pub async fn purge_audit_log(&self, retention_days: i64) -> Result<u64> {
-        let result = sqlx::query(
-            "DELETE FROM audit_log WHERE timestamp < datetime('now', ?1 || ' days')",
-        )
-        .bind(format!("-{retention_days}"))
-        .execute(&self.pool)
-        .await?;
+        let result =
+            sqlx::query("DELETE FROM audit_log WHERE timestamp < datetime('now', ?1 || ' days')")
+                .bind(format!("-{retention_days}"))
+                .execute(&self.pool)
+                .await?;
         Ok(result.rows_affected())
     }
 
@@ -593,12 +574,10 @@ impl Database {
 
     /// Get a single setting by key. Returns `None` if not found.
     pub async fn get_setting(&self, key: &str) -> Result<Option<String>> {
-        let row: Option<(String,)> = sqlx::query_as(
-            "SELECT value FROM setting WHERE key = ?1",
-        )
-        .bind(key)
-        .fetch_optional(&self.pool)
-        .await?;
+        let row: Option<(String,)> = sqlx::query_as("SELECT value FROM setting WHERE key = ?1")
+            .bind(key)
+            .fetch_optional(&self.pool)
+            .await?;
         Ok(row.map(|(v,)| v))
     }
 
@@ -618,11 +597,10 @@ impl Database {
 
     /// Get all settings as key-value pairs.
     pub async fn get_all_settings(&self) -> Result<Vec<(String, String)>> {
-        let rows: Vec<(String, String)> = sqlx::query_as(
-            "SELECT key, value FROM setting ORDER BY key",
-        )
-        .fetch_all(&self.pool)
-        .await?;
+        let rows: Vec<(String, String)> =
+            sqlx::query_as("SELECT key, value FROM setting ORDER BY key")
+                .fetch_all(&self.pool)
+                .await?;
         Ok(rows)
     }
 
@@ -746,7 +724,10 @@ mod tests {
         let db = test_db().await;
         let id = db.create_plan("Old Name", 60, 1000).await.unwrap();
 
-        let updated = db.update_plan(id, "New Name", 120, 2000, false).await.unwrap();
+        let updated = db
+            .update_plan(id, "New Name", 120, 2000, false)
+            .await
+            .unwrap();
         assert!(updated);
 
         let plan = db.get_plan(id).await.unwrap().unwrap();
@@ -765,10 +746,17 @@ mod tests {
         let db = test_db().await;
         let plan_id = db.create_plan("1h", 60, 1000).await.unwrap();
 
-        let token_id = db.create_token("DIDI-ABCD-EF23", None, plan_id).await.unwrap();
+        let token_id = db
+            .create_token("DIDI-ABCD-EF23", None, plan_id)
+            .await
+            .unwrap();
         assert!(token_id > 0);
 
-        let token = db.get_token_by_code("DIDI-ABCD-EF23").await.unwrap().unwrap();
+        let token = db
+            .get_token_by_code("DIDI-ABCD-EF23")
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(token.status, TokenStatus::Unused);
         assert_eq!(token.duration_minutes, 60);
 
@@ -780,9 +768,14 @@ mod tests {
     async fn test_redeem_and_expire_token() {
         let db = test_db().await;
         let plan_id = db.create_plan("1h", 60, 1000).await.unwrap();
-        let token_id = db.create_token("DIDI-TEST-CODE", None, plan_id).await.unwrap();
+        let token_id = db
+            .create_token("DIDI-TEST-CODE", None, plan_id)
+            .await
+            .unwrap();
 
-        db.redeem_token(token_id, "2026-12-31 23:59:59").await.unwrap();
+        db.redeem_token(token_id, "2026-12-31 23:59:59")
+            .await
+            .unwrap();
         let token = db.get_token_by_id(token_id).await.unwrap().unwrap();
         assert_eq!(token.status, TokenStatus::Active);
         assert!(token.redeemed_at.is_some());
@@ -796,7 +789,10 @@ mod tests {
     async fn test_revoke_token() {
         let db = test_db().await;
         let plan_id = db.create_plan("1h", 60, 1000).await.unwrap();
-        let token_id = db.create_token("DIDI-REVO-KEXX", None, plan_id).await.unwrap();
+        let token_id = db
+            .create_token("DIDI-REVO-KEXX", None, plan_id)
+            .await
+            .unwrap();
 
         db.revoke_token(token_id).await.unwrap();
         let token = db.get_token_by_id(token_id).await.unwrap().unwrap();
@@ -808,8 +804,13 @@ mod tests {
         let db = test_db().await;
         let plan_id = db.create_plan("1h", 60, 1000).await.unwrap();
 
-        let id1 = db.create_token("DIDI-AAAA-BBBB", None, plan_id).await.unwrap();
-        db.create_token("DIDI-CCCC-DDDD", None, plan_id).await.unwrap();
+        let id1 = db
+            .create_token("DIDI-AAAA-BBBB", None, plan_id)
+            .await
+            .unwrap();
+        db.create_token("DIDI-CCCC-DDDD", None, plan_id)
+            .await
+            .unwrap();
         db.revoke_token(id1).await.unwrap();
 
         let all = db.list_tokens(None).await.unwrap();
@@ -830,15 +831,27 @@ mod tests {
     async fn test_create_and_get_session() {
         let db = test_db().await;
         let plan_id = db.create_plan("1h", 60, 1000).await.unwrap();
-        let token_id = db.create_token("DIDI-SESS-TEST", None, plan_id).await.unwrap();
+        let token_id = db
+            .create_token("DIDI-SESS-TEST", None, plan_id)
+            .await
+            .unwrap();
 
         let session_id = db
-            .create_session(token_id, "AA:BB:CC:DD:EE:FF", "10.10.0.5", "2099-12-31 23:59:59")
+            .create_session(
+                token_id,
+                "AA:BB:CC:DD:EE:FF",
+                "10.10.0.5",
+                "2099-12-31 23:59:59",
+            )
             .await
             .unwrap();
         assert!(session_id > 0);
 
-        let session = db.get_session_by_mac("AA:BB:CC:DD:EE:FF").await.unwrap().unwrap();
+        let session = db
+            .get_session_by_mac("AA:BB:CC:DD:EE:FF")
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(session.ip_address, "10.10.0.5");
         assert_eq!(session.status, SessionStatus::Active);
     }
@@ -847,8 +860,14 @@ mod tests {
     async fn test_active_sessions() {
         let db = test_db().await;
         let plan_id = db.create_plan("1h", 60, 1000).await.unwrap();
-        let t1 = db.create_token("DIDI-ACT1-TEST", None, plan_id).await.unwrap();
-        let t2 = db.create_token("DIDI-ACT2-TEST", None, plan_id).await.unwrap();
+        let t1 = db
+            .create_token("DIDI-ACT1-TEST", None, plan_id)
+            .await
+            .unwrap();
+        let t2 = db
+            .create_token("DIDI-ACT2-TEST", None, plan_id)
+            .await
+            .unwrap();
 
         db.create_session(t1, "AA:11:22:33:44:55", "10.10.0.1", "2099-12-31 23:59:59")
             .await
@@ -870,9 +889,17 @@ mod tests {
     async fn test_expire_session() {
         let db = test_db().await;
         let plan_id = db.create_plan("1h", 60, 1000).await.unwrap();
-        let token_id = db.create_token("DIDI-EXPR-TEST", None, plan_id).await.unwrap();
+        let token_id = db
+            .create_token("DIDI-EXPR-TEST", None, plan_id)
+            .await
+            .unwrap();
         let session_id = db
-            .create_session(token_id, "CC:DD:EE:FF:00:11", "10.10.0.3", "2099-12-31 23:59:59")
+            .create_session(
+                token_id,
+                "CC:DD:EE:FF:00:11",
+                "10.10.0.3",
+                "2099-12-31 23:59:59",
+            )
             .await
             .unwrap();
 
@@ -893,14 +920,20 @@ mod tests {
 
         // Old session: still `active` in DB, but expired by clock (mimics the
         // 30–40 s window between nftables timeout and the DB cleanup ticker).
-        let stale_token = db.create_token("DIDI-STAL-EOLD", None, plan_id).await.unwrap();
+        let stale_token = db
+            .create_token("DIDI-STAL-EOLD", None, plan_id)
+            .await
+            .unwrap();
         let stale_id = db
             .create_session(stale_token, mac, "10.10.0.5", "2020-01-01 00:00:00")
             .await
             .unwrap();
 
         // User redeems a fresh token while the stale row is still 'active'.
-        let fresh_token = db.create_token("DIDI-FRSH-NEWX", None, plan_id).await.unwrap();
+        let fresh_token = db
+            .create_token("DIDI-FRSH-NEWX", None, plan_id)
+            .await
+            .unwrap();
         let fresh_id = db
             .create_session(fresh_token, mac, "10.10.0.5", "2099-12-31 23:59:59")
             .await
@@ -910,7 +943,11 @@ mod tests {
         // Only the fresh row should be `active` after the second create_session.
         let active = db.get_active_sessions().await.unwrap();
         let active_for_mac: Vec<_> = active.iter().filter(|s| s.mac_address == mac).collect();
-        assert_eq!(active_for_mac.len(), 1, "expected exactly one active row for MAC");
+        assert_eq!(
+            active_for_mac.len(),
+            1,
+            "expected exactly one active row for MAC"
+        );
         assert_eq!(active_for_mac[0].id, fresh_id);
 
         // get_session_by_mac must surface the fresh row.
@@ -932,8 +969,14 @@ mod tests {
         // Bypass create_session's transactional cleanup by INSERTing rows
         // directly — simulates a corrupted state where two `active` rows
         // exist for the same MAC.
-        let t1 = db.create_token("DIDI-TWOA-CTV1", None, plan_id).await.unwrap();
-        let t2 = db.create_token("DIDI-TWOA-CTV2", None, plan_id).await.unwrap();
+        let t1 = db
+            .create_token("DIDI-TWOA-CTV1", None, plan_id)
+            .await
+            .unwrap();
+        let t2 = db
+            .create_token("DIDI-TWOA-CTV2", None, plan_id)
+            .await
+            .unwrap();
 
         sqlx::query(
             "INSERT INTO session (token_id, mac_address, ip_address, started_at, expires_at, status) \
@@ -956,7 +999,10 @@ mod tests {
         .unwrap();
 
         let by_mac = db.get_session_by_mac(mac).await.unwrap().unwrap();
-        assert_eq!(by_mac.token_id, t2, "expected the row whose expires_at is in the future");
+        assert_eq!(
+            by_mac.token_id, t2,
+            "expected the row whose expires_at is in the future"
+        );
     }
 
     // -- Session remaining_seconds --
@@ -1053,7 +1099,9 @@ mod tests {
         db.create_plan("30min WiFi", 30, 500).await.unwrap();
         db.create_plan("1h WiFi", 60, 1000).await.unwrap();
         let id3 = db.create_plan("2h WiFi", 120, 2000).await.unwrap();
-        db.update_plan(id3, "2h WiFi", 120, 2000, false).await.unwrap();
+        db.update_plan(id3, "2h WiFi", 120, 2000, false)
+            .await
+            .unwrap();
 
         let active = db.list_active_plans().await.unwrap();
         assert_eq!(active.len(), 2);
@@ -1133,8 +1181,13 @@ mod tests {
 
         // Create a plan and redeem a token today
         let plan_id = db.create_plan("1h WiFi", 60, 1000).await.unwrap();
-        let token_id = db.create_token("TEST-CODE-0001", Some("test"), plan_id).await.unwrap();
-        db.redeem_token(token_id, "2099-12-31 23:59:59").await.unwrap();
+        let token_id = db
+            .create_token("TEST-CODE-0001", Some("test"), plan_id)
+            .await
+            .unwrap();
+        db.redeem_token(token_id, "2099-12-31 23:59:59")
+            .await
+            .unwrap();
 
         let days = db.get_weekly_stats().await.unwrap();
         assert_eq!(days.len(), 7);
@@ -1166,7 +1219,9 @@ mod tests {
         let db = test_db().await;
         let plan_id = db.create_plan("WiFi 1h", 60, 1000).await.unwrap();
         for i in 0..5 {
-            db.create_token(&format!("CODE-{i:04}"), Some("test"), plan_id).await.unwrap();
+            db.create_token(&format!("CODE-{i:04}"), Some("test"), plan_id)
+                .await
+                .unwrap();
         }
         let (tokens, total) = db.list_tokens_paged(None, 1, 50).await.unwrap();
         assert_eq!(total, 5);
@@ -1178,7 +1233,9 @@ mod tests {
         let db = test_db().await;
         let plan_id = db.create_plan("WiFi 1h", 60, 1000).await.unwrap();
         for i in 0..5 {
-            db.create_token(&format!("CODE-{i:04}"), Some("test"), plan_id).await.unwrap();
+            db.create_token(&format!("CODE-{i:04}"), Some("test"), plan_id)
+                .await
+                .unwrap();
         }
 
         // Page 1 of 2 (per_page=3)
@@ -1204,15 +1261,27 @@ mod tests {
 
         // Create 3 unused tokens
         for i in 0..3 {
-            db.create_token(&format!("UNUSED-{i:04}"), Some("test"), plan_id).await.unwrap();
+            db.create_token(&format!("UNUSED-{i:04}"), Some("test"), plan_id)
+                .await
+                .unwrap();
         }
         // Create 1 active token (redeem it)
-        let active_id = db.create_token("ACTIVE-0001", Some("test"), plan_id).await.unwrap();
-        db.redeem_token(active_id, "2099-12-31 23:59:59").await.unwrap();
+        let active_id = db
+            .create_token("ACTIVE-0001", Some("test"), plan_id)
+            .await
+            .unwrap();
+        db.redeem_token(active_id, "2099-12-31 23:59:59")
+            .await
+            .unwrap();
 
         // Create 1 expired token
-        let expired_id = db.create_token("EXPIRED-001", Some("test"), plan_id).await.unwrap();
-        db.redeem_token(expired_id, "2020-01-01 00:00:00").await.unwrap();
+        let expired_id = db
+            .create_token("EXPIRED-001", Some("test"), plan_id)
+            .await
+            .unwrap();
+        db.redeem_token(expired_id, "2020-01-01 00:00:00")
+            .await
+            .unwrap();
         db.expire_token(expired_id).await.unwrap();
 
         // "current" = unused + active → 4 tokens
@@ -1229,9 +1298,16 @@ mod tests {
         let db = test_db().await;
         let plan_id = db.create_plan("WiFi 1h", 60, 1000).await.unwrap();
 
-        db.create_token("UNUSED-0001", Some("u"), plan_id).await.unwrap();
-        let active_id = db.create_token("ACTIVE-0001", Some("a"), plan_id).await.unwrap();
-        db.redeem_token(active_id, "2099-12-31 23:59:59").await.unwrap();
+        db.create_token("UNUSED-0001", Some("u"), plan_id)
+            .await
+            .unwrap();
+        let active_id = db
+            .create_token("ACTIVE-0001", Some("a"), plan_id)
+            .await
+            .unwrap();
+        db.redeem_token(active_id, "2099-12-31 23:59:59")
+            .await
+            .unwrap();
 
         // Filter: unused only
         let (unused, total) = db.list_tokens_paged(Some("unused"), 1, 50).await.unwrap();
@@ -1261,15 +1337,31 @@ mod tests {
     async fn test_live_sessions_excludes_past_expires_at() {
         let db = test_db().await;
         let plan_id = db.create_plan("1h", 60, 1000).await.unwrap();
-        let live_tok = db.create_token("LIVE-AAAA-AAAA", None, plan_id).await.unwrap();
-        let dead_tok = db.create_token("DEAD-BBBB-BBBB", None, plan_id).await.unwrap();
+        let live_tok = db
+            .create_token("LIVE-AAAA-AAAA", None, plan_id)
+            .await
+            .unwrap();
+        let dead_tok = db
+            .create_token("DEAD-BBBB-BBBB", None, plan_id)
+            .await
+            .unwrap();
 
-        db.create_session(live_tok, "AA:AA:AA:AA:AA:AA", "10.0.0.1", "2099-12-31 23:59:59")
-            .await
-            .unwrap();
-        db.create_session(dead_tok, "BB:BB:BB:BB:BB:BB", "10.0.0.2", "2020-01-01 00:00:00")
-            .await
-            .unwrap();
+        db.create_session(
+            live_tok,
+            "AA:AA:AA:AA:AA:AA",
+            "10.0.0.1",
+            "2099-12-31 23:59:59",
+        )
+        .await
+        .unwrap();
+        db.create_session(
+            dead_tok,
+            "BB:BB:BB:BB:BB:BB",
+            "10.0.0.2",
+            "2020-01-01 00:00:00",
+        )
+        .await
+        .unwrap();
 
         // Cleanup ticker sees both rows (it needs to transition the dead one).
         let active = db.get_active_sessions().await.unwrap();
@@ -1287,15 +1379,31 @@ mod tests {
     async fn test_daily_stats_excludes_past_expires_at() {
         let db = test_db().await;
         let plan_id = db.create_plan("1h", 60, 1000).await.unwrap();
-        let live_tok = db.create_token("LIVE-CCCC-CCCC", None, plan_id).await.unwrap();
-        let dead_tok = db.create_token("DEAD-DDDD-DDDD", None, plan_id).await.unwrap();
+        let live_tok = db
+            .create_token("LIVE-CCCC-CCCC", None, plan_id)
+            .await
+            .unwrap();
+        let dead_tok = db
+            .create_token("DEAD-DDDD-DDDD", None, plan_id)
+            .await
+            .unwrap();
 
-        db.create_session(live_tok, "AA:AA:AA:AA:AA:AA", "10.0.0.1", "2099-12-31 23:59:59")
-            .await
-            .unwrap();
-        db.create_session(dead_tok, "BB:BB:BB:BB:BB:BB", "10.0.0.2", "2020-01-01 00:00:00")
-            .await
-            .unwrap();
+        db.create_session(
+            live_tok,
+            "AA:AA:AA:AA:AA:AA",
+            "10.0.0.1",
+            "2099-12-31 23:59:59",
+        )
+        .await
+        .unwrap();
+        db.create_session(
+            dead_tok,
+            "BB:BB:BB:BB:BB:BB",
+            "10.0.0.2",
+            "2020-01-01 00:00:00",
+        )
+        .await
+        .unwrap();
 
         let stats = db.get_daily_stats().await.unwrap();
         assert_eq!(stats.active_sessions, 1);
@@ -1311,16 +1419,31 @@ mod tests {
 
         db.create_token("UNUSED-0001", None, plan_id).await.unwrap();
 
-        let live_id = db.create_token("LIVE-AAAA-AAAA", None, plan_id).await.unwrap();
-        db.redeem_token(live_id, "2099-12-31 23:59:59").await.unwrap();
+        let live_id = db
+            .create_token("LIVE-AAAA-AAAA", None, plan_id)
+            .await
+            .unwrap();
+        db.redeem_token(live_id, "2099-12-31 23:59:59")
+            .await
+            .unwrap();
 
         // Effectively expired: redeemed in the past, ticker hasn't run yet.
-        let stale_id = db.create_token("STALE-BBBB-BB", None, plan_id).await.unwrap();
-        db.redeem_token(stale_id, "2020-01-01 00:00:00").await.unwrap();
+        let stale_id = db
+            .create_token("STALE-BBBB-BB", None, plan_id)
+            .await
+            .unwrap();
+        db.redeem_token(stale_id, "2020-01-01 00:00:00")
+            .await
+            .unwrap();
 
         // Already-transitioned expired token (ticker did run).
-        let cleaned_id = db.create_token("CLEAN-CCCC-CC", None, plan_id).await.unwrap();
-        db.redeem_token(cleaned_id, "2020-01-01 00:00:00").await.unwrap();
+        let cleaned_id = db
+            .create_token("CLEAN-CCCC-CC", None, plan_id)
+            .await
+            .unwrap();
+        db.redeem_token(cleaned_id, "2020-01-01 00:00:00")
+            .await
+            .unwrap();
         db.expire_token(cleaned_id).await.unwrap();
 
         // "current" = unused + effectively-active → 2 (UNUSED + LIVE)
@@ -1362,7 +1485,9 @@ mod tests {
     async fn test_get_audit_log_paged_with_data() {
         let db = test_db().await;
         for i in 0..5 {
-            db.audit_log("admin", &format!("action_{i}"), None, None, None).await.unwrap();
+            db.audit_log("admin", &format!("action_{i}"), None, None, None)
+                .await
+                .unwrap();
         }
         let (entries, total) = db.get_audit_log_paged(1, 50).await.unwrap();
         assert_eq!(total, 5);
@@ -1373,7 +1498,9 @@ mod tests {
     async fn test_get_audit_log_paged_limit_offset() {
         let db = test_db().await;
         for i in 0..5 {
-            db.audit_log("admin", &format!("action_{i}"), None, None, None).await.unwrap();
+            db.audit_log("admin", &format!("action_{i}"), None, None, None)
+                .await
+                .unwrap();
         }
 
         // Page 1 of 2 (per_page=3)

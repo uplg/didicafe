@@ -13,8 +13,8 @@
 //! Redirections use the configured domain (e.g. `http://wifi.didicafe/portal`)
 //! so the user sees a friendly URL instead of a raw IP address.
 
-use std::sync::Arc;
 use axum::{Router, extract::State, response::Redirect, routing::get};
+use std::sync::Arc;
 
 use crate::AppState;
 
@@ -55,11 +55,11 @@ async fn redirect_to_portal(State(state): State<Arc<AppState>>) -> Redirect {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use axum::http::StatusCode;
+    use std::sync::Arc;
     use tower::ServiceExt;
 
-    use crate::test_utils::{test_state, test_get};
+    use crate::test_utils::{test_get, test_state};
 
     fn cpd_router(state: Arc<crate::AppState>) -> axum::Router {
         super::routes().with_state(state)
@@ -72,7 +72,12 @@ mod tests {
         let response = app.oneshot(test_get("/hotspot-detect.html")).await.unwrap();
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
-        let location = response.headers().get("location").unwrap().to_str().unwrap();
+        let location = response
+            .headers()
+            .get("location")
+            .unwrap()
+            .to_str()
+            .unwrap();
         assert_eq!(location, "http://wifi.didicafe:8080/portal");
     }
 
@@ -83,7 +88,12 @@ mod tests {
         let response = app.oneshot(test_get("/generate_204")).await.unwrap();
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
-        let location = response.headers().get("location").unwrap().to_str().unwrap();
+        let location = response
+            .headers()
+            .get("location")
+            .unwrap()
+            .to_str()
+            .unwrap();
         assert!(location.contains("wifi.didicafe"));
         assert!(location.ends_with("/portal"));
     }
@@ -95,7 +105,12 @@ mod tests {
         let response = app.oneshot(test_get("/connecttest.txt")).await.unwrap();
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
-        let location = response.headers().get("location").unwrap().to_str().unwrap();
+        let location = response
+            .headers()
+            .get("location")
+            .unwrap()
+            .to_str()
+            .unwrap();
         assert!(location.contains("/portal"));
     }
 
@@ -103,10 +118,18 @@ mod tests {
     async fn test_cpd_linux_redirects_to_domain() {
         let state = test_state().await;
         let app = cpd_router(state);
-        let response = app.oneshot(test_get("/check_network_status.txt")).await.unwrap();
+        let response = app
+            .oneshot(test_get("/check_network_status.txt"))
+            .await
+            .unwrap();
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
-        let location = response.headers().get("location").unwrap().to_str().unwrap();
+        let location = response
+            .headers()
+            .get("location")
+            .unwrap()
+            .to_str()
+            .unwrap();
         assert!(location.contains("/portal"));
     }
 
@@ -126,7 +149,9 @@ mod tests {
             firewall: Arc::new(crate::firewall::MockFirewall::new()),
             admin_sessions: crate::services::admin_session::AdminSessionStore::new(3600),
             rate_limiter: crate::services::rate_limit::RateLimiter::new(&state.config.rate_limit),
-            admin_rate_limiter: crate::services::rate_limit::RateLimiter::new(&state.config.rate_limit),
+            admin_rate_limiter: crate::services::rate_limit::RateLimiter::new(
+                &state.config.rate_limit,
+            ),
             portal_csrf_store: crate::services::csrf::PortalCsrfStore::new(),
             login_csrf_store: crate::services::csrf::PortalCsrfStore::new(),
         });
@@ -134,7 +159,12 @@ mod tests {
         let app = cpd_router(state);
         let response = app.oneshot(test_get("/hotspot-detect.html")).await.unwrap();
 
-        let location = response.headers().get("location").unwrap().to_str().unwrap();
+        let location = response
+            .headers()
+            .get("location")
+            .unwrap()
+            .to_str()
+            .unwrap();
         assert_eq!(location, "http://wifi.didicafe/portal");
     }
 }

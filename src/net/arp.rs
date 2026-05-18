@@ -114,11 +114,7 @@ async fn lookup_ip_neigh(ip: &str) -> Option<String> {
 /// ```
 #[cfg(not(debug_assertions))]
 async fn lookup_arp_command(ip: &str) -> Option<String> {
-    let output = Command::new("arp")
-        .args(["-an"])
-        .output()
-        .await
-        .ok()?;
+    let output = Command::new("arp").args(["-an"]).output().await.ok()?;
 
     if !output.status.success() {
         return None;

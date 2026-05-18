@@ -7,10 +7,10 @@ use axum::{
 };
 use tracing::warn;
 
+use super::error::AppError;
 use crate::AppState;
 use crate::net::arp;
 use crate::net::mac::is_valid_mac;
-use super::error::AppError;
 
 /// Cookie name for admin sessions.
 pub const ADMIN_COOKIE_NAME: &str = "didicafe_admin";
@@ -93,11 +93,14 @@ impl<S: Send + Sync> FromRequestParts<S> for ClientInfo {
         let ip = addr.ip();
 
         #[cfg(test)]
-        let mac = mac_lookup_result(ip, if ip.is_loopback() {
-            Some("02:00:00:00:00:01".to_string())
-        } else {
-            arp::lookup_mac(ip).await
-        })?;
+        let mac = mac_lookup_result(
+            ip,
+            if ip.is_loopback() {
+                Some("02:00:00:00:00:01".to_string())
+            } else {
+                arp::lookup_mac(ip).await
+            },
+        )?;
 
         #[cfg(not(test))]
         let mac = mac_lookup_result(ip, arp::lookup_mac(ip).await)?;
@@ -175,7 +178,9 @@ mod tests {
         let mut headers = axum::http::HeaderMap::new();
         headers.insert(
             axum::http::header::COOKIE,
-            "other=foo; didicafe_admin=xyz789; third=bar".parse().unwrap(),
+            "other=foo; didicafe_admin=xyz789; third=bar"
+                .parse()
+                .unwrap(),
         );
         assert_eq!(
             extract_cookie(&headers, "didicafe_admin"),
@@ -186,10 +191,7 @@ mod tests {
     #[test]
     fn test_extract_cookie_missing() {
         let mut headers = axum::http::HeaderMap::new();
-        headers.insert(
-            axum::http::header::COOKIE,
-            "other=foo".parse().unwrap(),
-        );
+        headers.insert(axum::http::header::COOKIE, "other=foo".parse().unwrap());
         assert_eq!(extract_cookie(&headers, "didicafe_admin"), None);
     }
 

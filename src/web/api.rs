@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use axum::{
     Json, Router,
     extract::{Path, Query, State},
@@ -7,10 +6,11 @@ use axum::{
     routing::{delete, get, patch, post, put},
 };
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
-use crate::AppState;
 use super::AppError;
 use super::extractors::AdminSession;
+use crate::AppState;
 
 // -- Consistent API response envelope --
 
@@ -83,8 +83,7 @@ async fn list_plans(
     State(state): State<Arc<AppState>>,
     _admin: AdminSession,
 ) -> Result<impl IntoResponse, AppError> {
-    let plans = state.db.list_plans().await
-        .map_err(AppError::Internal)?;
+    let plans = state.db.list_plans().await.map_err(AppError::Internal)?;
     Ok(ApiResponse::success(serde_json::json!({ "plans": plans })))
 }
 
@@ -95,10 +94,26 @@ async fn create_plan(
 ) -> Result<impl IntoResponse, AppError> {
     super::admin::validate_plan_input(&req.name, req.duration_minutes, req.price_ariary)?;
 
-    let id = state.db.create_plan(&req.name, req.duration_minutes, req.price_ariary).await
+    let id = state
+        .db
+        .create_plan(&req.name, req.duration_minutes, req.price_ariary)
+        .await
         .map_err(AppError::Internal)?;
-    state.db.audit_log(&state.config.admin.username, "create_plan", Some("plan"), None, Some(&req.name)).await.ok();
-    Ok((StatusCode::CREATED, ApiResponse::success(serde_json::json!({ "id": id }))))
+    state
+        .db
+        .audit_log(
+            &state.config.admin.username,
+            "create_plan",
+            Some("plan"),
+            None,
+            Some(&req.name),
+        )
+        .await
+        .ok();
+    Ok((
+        StatusCode::CREATED,
+        ApiResponse::success(serde_json::json!({ "id": id })),
+    ))
 }
 
 async fn update_plan(
@@ -109,12 +124,31 @@ async fn update_plan(
 ) -> Result<impl IntoResponse, AppError> {
     super::admin::validate_plan_input(&req.name, req.duration_minutes, req.price_ariary)?;
 
-    let updated = state.db.update_plan(id, &req.name, req.duration_minutes, req.price_ariary, req.active).await
+    let updated = state
+        .db
+        .update_plan(
+            id,
+            &req.name,
+            req.duration_minutes,
+            req.price_ariary,
+            req.active,
+        )
+        .await
         .map_err(AppError::Internal)?;
     if !updated {
         return Err(AppError::NotFound(format!("plan {id} not found")));
     }
-    state.db.audit_log(&state.config.admin.username, "update_plan", Some("plan"), Some(id), None).await.ok();
+    state
+        .db
+        .audit_log(
+            &state.config.admin.username,
+            "update_plan",
+            Some("plan"),
+            Some(id),
+            None,
+        )
+        .await
+        .ok();
     Ok(ApiResponse::success(serde_json::json!({ "id": id })))
 }
 
@@ -124,16 +158,30 @@ async fn toggle_plan_active(
     Path(id): Path<i64>,
     Json(req): Json<TogglePlanActiveRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let plan = state.db.get_plan(id).await
+    let plan = state
+        .db
+        .get_plan(id)
+        .await
         .map_err(AppError::Internal)?
         .ok_or_else(|| AppError::NotFound(format!("plan {id} not found")))?;
 
-    let updated = state.db.update_plan(id, &plan.name, plan.duration_minutes, plan.price_ariary, req.active).await
+    let updated = state
+        .db
+        .update_plan(
+            id,
+            &plan.name,
+            plan.duration_minutes,
+            plan.price_ariary,
+            req.active,
+        )
+        .await
         .map_err(AppError::Internal)?;
     if !updated {
         return Err(AppError::NotFound(format!("plan {id} not found")));
     }
-    Ok(ApiResponse::success(serde_json::json!({ "id": id, "active": req.active })))
+    Ok(ApiResponse::success(
+        serde_json::json!({ "id": id, "active": req.active }),
+    ))
 }
 
 async fn list_tokens(
@@ -152,9 +200,14 @@ async fn list_tokens(
         )));
     }
 
-    let tokens = state.db.list_tokens(query.status.as_deref()).await
+    let tokens = state
+        .db
+        .list_tokens(query.status.as_deref())
+        .await
         .map_err(AppError::Internal)?;
-    Ok(ApiResponse::success(serde_json::json!({ "tokens": tokens })))
+    Ok(ApiResponse::success(
+        serde_json::json!({ "tokens": tokens }),
+    ))
 }
 
 async fn generate_tokens(
@@ -166,7 +219,9 @@ async fn generate_tokens(
         return Err(AppError::BadRequest("name must not be empty".to_string()));
     }
     if req.name.len() > 200 {
-        return Err(AppError::BadRequest("name must be 200 characters or less".to_string()));
+        return Err(AppError::BadRequest(
+            "name must be 200 characters or less".to_string(),
+        ));
     }
     if req.count == 0 {
         return Err(AppError::BadRequest("count must be > 0".to_string()));
@@ -176,11 +231,17 @@ async fn generate_tokens(
     }
 
     // Verify plan exists
-    let plan = state.db.get_plan(req.plan_id).await
+    let plan = state
+        .db
+        .get_plan(req.plan_id)
+        .await
         .map_err(AppError::Internal)?
         .ok_or_else(|| AppError::NotFound(format!("plan {} not found", req.plan_id)))?;
     if !plan.active {
-        return Err(AppError::BadRequest(format!("plan '{}' is not active", plan.name)));
+        return Err(AppError::BadRequest(format!(
+            "plan '{}' is not active",
+            plan.name
+        )));
     }
 
     let codes = crate::services::token::generate_tokens(
@@ -189,8 +250,13 @@ async fn generate_tokens(
         req.plan_id,
         req.count,
         Some(&req.name),
-    ).await.map_err(AppError::Internal)?;
-    Ok((StatusCode::CREATED, ApiResponse::success(serde_json::json!({ "tokens": codes }))))
+    )
+    .await
+    .map_err(AppError::Internal)?;
+    Ok((
+        StatusCode::CREATED,
+        ApiResponse::success(serde_json::json!({ "tokens": codes })),
+    ))
 }
 
 async fn revoke_token(
@@ -199,19 +265,36 @@ async fn revoke_token(
     Path(id): Path<i64>,
 ) -> Result<StatusCode, AppError> {
     // Verify the token exists before attempting revocation
-    let token = state.db.get_token_by_id(id).await
+    let token = state
+        .db
+        .get_token_by_id(id)
+        .await
         .map_err(AppError::Internal)?
         .ok_or_else(|| AppError::NotFound(format!("token {id} not found")))?;
 
     if token.status != crate::db::TokenStatus::Unused {
         return Err(AppError::BadRequest(format!(
-            "cannot revoke token with status '{}'", token.status
+            "cannot revoke token with status '{}'",
+            token.status
         )));
     }
 
-    state.db.revoke_token(id).await
+    state
+        .db
+        .revoke_token(id)
+        .await
         .map_err(AppError::Internal)?;
-    state.db.audit_log(&state.config.admin.username, "revoke_token", Some("token"), Some(id), None).await.ok();
+    state
+        .db
+        .audit_log(
+            &state.config.admin.username,
+            "revoke_token",
+            Some("token"),
+            Some(id),
+            None,
+        )
+        .await
+        .ok();
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -219,9 +302,14 @@ async fn list_sessions(
     State(state): State<Arc<AppState>>,
     _admin: AdminSession,
 ) -> Result<impl IntoResponse, AppError> {
-    let sessions = state.db.get_active_sessions().await
+    let sessions = state
+        .db
+        .get_active_sessions()
+        .await
         .map_err(AppError::Internal)?;
-    Ok(ApiResponse::success(serde_json::json!({ "sessions": sessions })))
+    Ok(ApiResponse::success(
+        serde_json::json!({ "sessions": sessions }),
+    ))
 }
 
 async fn disconnect_session(
@@ -229,9 +317,22 @@ async fn disconnect_session(
     _admin: AdminSession,
     Path(id): Path<i64>,
 ) -> Result<StatusCode, AppError> {
-    crate::services::session::disconnect(&state, id).await
-        .map_err(|e| AppError::Firewall(crate::web::error::FirewallError::Internal(e.to_string())))?;
-    state.db.audit_log(&state.config.admin.username, "disconnect_session", Some("session"), Some(id), None).await.ok();
+    crate::services::session::disconnect(&state, id)
+        .await
+        .map_err(|e| {
+            AppError::Firewall(crate::web::error::FirewallError::Internal(e.to_string()))
+        })?;
+    state
+        .db
+        .audit_log(
+            &state.config.admin.username,
+            "disconnect_session",
+            Some("session"),
+            Some(id),
+            None,
+        )
+        .await
+        .ok();
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -239,7 +340,10 @@ async fn get_stats(
     State(state): State<Arc<AppState>>,
     _admin: AdminSession,
 ) -> Result<impl IntoResponse, AppError> {
-    let stats = state.db.get_daily_stats().await
+    let stats = state
+        .db
+        .get_daily_stats()
+        .await
         .map_err(AppError::Internal)?;
     Ok(ApiResponse::success(stats))
 }
@@ -248,7 +352,10 @@ async fn get_weekly_stats(
     State(state): State<Arc<AppState>>,
     _admin: AdminSession,
 ) -> Result<impl IntoResponse, AppError> {
-    let days = state.db.get_weekly_stats().await
+    let days = state
+        .db
+        .get_weekly_stats()
+        .await
         .map_err(AppError::Internal)?;
     Ok(ApiResponse::success(serde_json::json!({ "days": days })))
 }

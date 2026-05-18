@@ -77,7 +77,8 @@ impl IntoResponse for AppError {
                     return (
                         StatusCode::UNAUTHORIZED,
                         Json(json!({ "error": "authentication required" })),
-                    ).into_response();
+                    )
+                        .into_response();
                 }
                 return Redirect::to("/admin/login").into_response();
             }
@@ -91,11 +92,8 @@ impl IntoResponse for AppError {
             }
             AppError::RateLimited { retry_after } => {
                 // 429 Too Many Requests — never leak whether a token exists (OWASP)
-                let mut response = (
-                    StatusCode::TOO_MANY_REQUESTS,
-                    "error.rate_limit",
-                )
-                    .into_response();
+                let mut response =
+                    (StatusCode::TOO_MANY_REQUESTS, "error.rate_limit").into_response();
                 if let Some(secs) = retry_after
                     && let Ok(val) = axum::http::HeaderValue::from_str(&secs.to_string())
                 {

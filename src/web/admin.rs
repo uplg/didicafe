@@ -1,24 +1,23 @@
-use std::net::SocketAddr;
-use std::sync::Arc;
+use askama::Template;
 use axum::{
-    Form,
-    Router,
+    Form, Router,
     extract::{ConnectInfo, Query, State},
     http::{StatusCode, header::SET_COOKIE},
     response::{AppendHeaders, IntoResponse, Redirect},
     routing::{get, post},
 };
-use askama::Template;
 use serde::Deserialize;
+use std::net::SocketAddr;
+use std::sync::Arc;
 use subtle::ConstantTimeEq;
 
+use super::I18nMessage;
+use super::error::{AppError, render};
+use super::extractors::{ADMIN_COOKIE_NAME, AdminSession, CsrfToken, extract_cookie};
 use crate::AppState;
 use crate::config::PortalConfig;
 use crate::net::arp;
 use crate::services::rate_limit::RateLimitResult;
-use super::error::{AppError, render};
-use super::extractors::{AdminSession, CsrfToken, extract_cookie, ADMIN_COOKIE_NAME};
-use super::I18nMessage;
 
 /// Duration the admin's MAC stays in the firewall `auth_clients` set after a
 /// successful admin login. Long enough that the manager doesn't need to
@@ -50,7 +49,9 @@ async fn verify_password(password: &str, hash: &str) -> bool {
         let Ok(parsed) = PasswordHash::new(&hash) else {
             return false;
         };
-        Argon2::default().verify_password(password.as_bytes(), &parsed).is_ok()
+        Argon2::default()
+            .verify_password(password.as_bytes(), &parsed)
+            .is_ok()
     })
     .await
     .unwrap_or_else(|e| {
@@ -68,17 +69,13 @@ async fn verify_password(password: &str, hash: &str) -> bool {
 /// - `Secure`: set when TLS is enabled (admin served over HTTPS)
 fn session_cookie(session_id: &str, tls_enabled: bool) -> String {
     let secure = if tls_enabled { "; Secure" } else { "" };
-    format!(
-        "{ADMIN_COOKIE_NAME}={session_id}; HttpOnly; SameSite=Strict; Path=/{secure}"
-    )
+    format!("{ADMIN_COOKIE_NAME}={session_id}; HttpOnly; SameSite=Strict; Path=/{secure}")
 }
 
 /// Build a Set-Cookie header that clears the admin session cookie.
 fn clear_session_cookie(tls_enabled: bool) -> String {
     let secure = if tls_enabled { "; Secure" } else { "" };
-    format!(
-        "{ADMIN_COOKIE_NAME}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0{secure}"
-    )
+    format!("{ADMIN_COOKIE_NAME}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0{secure}")
 }
 
 // -- Templates --
@@ -267,7 +264,12 @@ async fn login_page(
     // on the first response.
     let csrf_token = state.login_csrf_store.get_or_generate(&ip_key);
     let ctx = admin_ctx(&state).await;
-    render(&LoginTemplate { error: None, csrf_token, cafe_name: ctx.cafe_name, theme_css: ctx.theme_css })
+    render(&LoginTemplate {
+        error: None,
+        csrf_token,
+        cafe_name: ctx.cafe_name,
+        theme_css: ctx.theme_css,
+    })
 }
 
 /// POST /admin/login — validate credentials, create session, set cookie
@@ -302,16 +304,17 @@ async fn login_submit(
 
     // Rate limit admin login attempts (OWASP: all auth endpoints)
     match state.admin_rate_limiter.check_and_record(addr.ip()) {
-        RateLimitResult::Banned { retry_after_seconds } => {
+        RateLimitResult::Banned {
+            retry_after_seconds,
+        } => {
             let csrf_token = state.login_csrf_store.generate(&ip_key);
             let body = render(&login_err("admin.login.error.rate_limit", csrf_token))?;
             return Ok((
                 StatusCode::TOO_MANY_REQUESTS,
-                AppendHeaders([
-                    ("Retry-After", retry_after_seconds.to_string()),
-                ]),
+                AppendHeaders([("Retry-After", retry_after_seconds.to_string())]),
                 body,
-            ).into_response());
+            )
+                .into_response());
         }
         RateLimitResult::Throttled => {
             let csrf_token = state.login_csrf_store.generate(&ip_key);
@@ -329,13 +332,19 @@ async fn login_submit(
     }
 
     // Constant-time username comparison (prevents timing oracle)
-    let username_ok = form.username.as_bytes()
+    let username_ok = form
+        .username
+        .as_bytes()
         .ct_eq(state.config.admin.username.as_bytes())
         .into();
     let password_ok = verify_password(&form.password, &state.config.admin.password_hash).await;
 
     if username_ok && password_ok {
-        state.db.audit_log(&form.username, "login", None, None, None).await.ok();
+        state
+            .db
+            .audit_log(&form.username, "login", None, None, None)
+            .await
+            .ok();
 
         // Session fixation fix: invalidate any existing session from this cookie
         if let Some(old_id) = extract_cookie(&headers, ADMIN_COOKIE_NAME) {
@@ -349,11 +358,15 @@ async fn login_submit(
         // used by paying customers, with a long timeout.
         let client_ip = addr.ip();
         if let Some(client_mac) = arp::lookup_mac(client_ip).await {
-            if let Err(e) = state.firewall.authorize_client(
-                &client_mac,
-                &client_ip.to_string(),
-                ADMIN_AUTHORIZE_TIMEOUT_SECS,
-            ).await {
+            if let Err(e) = state
+                .firewall
+                .authorize_client(
+                    &client_mac,
+                    &client_ip.to_string(),
+                    ADMIN_AUTHORIZE_TIMEOUT_SECS,
+                )
+                .await
+            {
                 tracing::warn!(
                     %client_mac,
                     %client_ip,
@@ -379,11 +392,16 @@ async fn login_submit(
         Ok((
             AppendHeaders([(SET_COOKIE, cookie)]),
             Redirect::to("/admin"),
-        ).into_response())
+        )
+            .into_response())
     } else {
         // Log failed login attempt (OWASP audit trail) — truncate username to prevent log flooding
         let logged_user = &form.username[..form.username.len().min(MAX_USERNAME_LEN)];
-        state.db.audit_log(logged_user, "login_failed", None, None, None).await.ok();
+        state
+            .db
+            .audit_log(logged_user, "login_failed", None, None, None)
+            .await
+            .ok();
         let csrf_token = state.login_csrf_store.generate(&ip_key);
         let body = render(&login_err("admin.login.error", csrf_token))?;
         Ok(body.into_response())
@@ -396,9 +414,7 @@ async fn logout(
     headers: axum::http::HeaderMap,
 ) -> Result<impl IntoResponse, AppError> {
     // Extract session ID from cookie and invalidate server-side
-    if let Some(session_id) =
-        extract_cookie(&headers, ADMIN_COOKIE_NAME)
-    {
+    if let Some(session_id) = extract_cookie(&headers, ADMIN_COOKIE_NAME) {
         state.admin_sessions.remove(&session_id);
     }
 
@@ -414,9 +430,15 @@ async fn dashboard(
     _admin: AdminSession,
     csrf: CsrfToken,
 ) -> Result<impl IntoResponse, AppError> {
-    let stats = state.db.get_daily_stats().await
+    let stats = state
+        .db
+        .get_daily_stats()
+        .await
         .map_err(AppError::Internal)?;
-    let active_sessions = state.db.get_live_sessions().await
+    let active_sessions = state
+        .db
+        .get_live_sessions()
+        .await
         .map_err(AppError::Internal)?;
     let ctx = admin_ctx(&state).await;
 
@@ -460,26 +482,40 @@ async fn manage_submit(
     Form(form): Form<ManageForm>,
 ) -> Result<impl IntoResponse, AppError> {
     // CSRF validation (constant-time comparison)
-    let csrf_ok: bool = form.csrf_token.as_bytes()
-        .ct_eq(csrf.0.as_bytes())
-        .into();
+    let csrf_ok: bool = form.csrf_token.as_bytes().ct_eq(csrf.0.as_bytes()).into();
     if !csrf_ok {
         return Err(AppError::BadRequest("admin.error.csrf".to_string()));
     }
 
     let message = if let Some(plan_name) = &form.plan_name {
         if !plan_name.is_empty() {
-            let duration = form.duration
+            let duration = form
+                .duration
                 .ok_or_else(|| AppError::BadRequest("admin.error.duration_required".to_string()))?;
-            let price = form.price
+            let price = form
+                .price
                 .ok_or_else(|| AppError::BadRequest("admin.error.price_required".to_string()))?;
             validate_plan_input(plan_name, duration, price)?;
-            state.db.create_plan(plan_name, duration, price).await
+            state
+                .db
+                .create_plan(plan_name, duration, price)
+                .await
                 .map_err(AppError::Internal)?;
-            state.db.audit_log(&state.config.admin.username, "create_plan", Some("plan"), None, Some(plan_name)).await.ok();
-            Some(I18nMessage::with_args("admin.manage.plan_created", [
-                ("name", plan_name.clone()),
-            ]))
+            state
+                .db
+                .audit_log(
+                    &state.config.admin.username,
+                    "create_plan",
+                    Some("plan"),
+                    None,
+                    Some(plan_name),
+                )
+                .await
+                .ok();
+            Some(I18nMessage::with_args(
+                "admin.manage.plan_created",
+                [("name", plan_name.clone())],
+            ))
         } else {
             None
         }
@@ -491,17 +527,24 @@ async fn manage_submit(
                 return Err(AppError::BadRequest("admin.error.name_empty".to_string()));
             }
             if token_name.len() > 200 {
-                return Err(AppError::BadRequest("admin.error.name_too_long_200".to_string()));
+                return Err(AppError::BadRequest(
+                    "admin.error.name_too_long_200".to_string(),
+                ));
             }
             if count > 100 {
                 return Err(AppError::BadRequest("admin.error.count_max".to_string()));
             }
             // Verify plan exists and is active (consistent with API validation)
-            let plan = state.db.get_plan(plan_id).await
+            let plan = state
+                .db
+                .get_plan(plan_id)
+                .await
                 .map_err(AppError::Internal)?
                 .ok_or_else(|| AppError::NotFound(format!("plan {plan_id} not found")))?;
             if !plan.active {
-                return Err(AppError::BadRequest("admin.error.plan_inactive".to_string()));
+                return Err(AppError::BadRequest(
+                    "admin.error.plan_inactive".to_string(),
+                ));
             }
             let codes = crate::services::token::generate_tokens(
                 &state.db,
@@ -509,11 +552,24 @@ async fn manage_submit(
                 plan_id,
                 count,
                 Some(token_name),
-            ).await.map_err(AppError::Internal)?;
-            state.db.audit_log(&state.config.admin.username, "generate_tokens", Some("token"), Some(plan_id), Some(&format!("{} tokens for plan {}", codes.len(), plan_id))).await.ok();
-            Some(I18nMessage::with_args("admin.manage.tokens_generated", [
-                ("count", codes.len().to_string()),
-            ]))
+            )
+            .await
+            .map_err(AppError::Internal)?;
+            state
+                .db
+                .audit_log(
+                    &state.config.admin.username,
+                    "generate_tokens",
+                    Some("token"),
+                    Some(plan_id),
+                    Some(&format!("{} tokens for plan {}", codes.len(), plan_id)),
+                )
+                .await
+                .ok();
+            Some(I18nMessage::with_args(
+                "admin.manage.tokens_generated",
+                [("count", codes.len().to_string())],
+            ))
         } else {
             None
         }
@@ -543,16 +599,22 @@ pub fn validate_plan_input(name: &str, duration: i64, price: i64) -> Result<(), 
         return Err(AppError::BadRequest("admin.error.name_empty".to_string()));
     }
     if name.len() > 100 {
-        return Err(AppError::BadRequest("admin.error.name_too_long".to_string()));
+        return Err(AppError::BadRequest(
+            "admin.error.name_too_long".to_string(),
+        ));
     }
     if duration <= 0 {
-        return Err(AppError::BadRequest("admin.error.duration_positive".to_string()));
+        return Err(AppError::BadRequest(
+            "admin.error.duration_positive".to_string(),
+        ));
     }
     if duration > 1440 {
         return Err(AppError::BadRequest("admin.error.duration_max".to_string()));
     }
     if price < 0 {
-        return Err(AppError::BadRequest("admin.error.price_negative".to_string()));
+        return Err(AppError::BadRequest(
+            "admin.error.price_negative".to_string(),
+        ));
     }
     Ok(())
 }
@@ -582,12 +644,22 @@ async fn load_manage_data(
     state: &Arc<AppState>,
     status_filter: &str,
     page: i64,
-) -> Result<(crate::db::TokenPage, Vec<crate::db::Plan>, Vec<crate::db::Session>), AppError> {
+) -> Result<
+    (
+        crate::db::TokenPage,
+        Vec<crate::db::Plan>,
+        Vec<crate::db::Session>,
+    ),
+    AppError,
+> {
     let db_filter = match status_filter {
         "all" => None,
         other => Some(other),
     };
-    let (tokens, total) = state.db.list_tokens_paged(db_filter, page, TOKENS_PER_PAGE).await
+    let (tokens, total) = state
+        .db
+        .list_tokens_paged(db_filter, page, TOKENS_PER_PAGE)
+        .await
         .map_err(AppError::Internal)?;
     let token_page = crate::db::TokenPage {
         tokens,
@@ -597,7 +669,11 @@ async fn load_manage_data(
         status_filter: status_filter.to_string(),
     };
     let plans = state.db.list_plans().await.map_err(AppError::Internal)?;
-    let sessions = state.db.get_live_sessions().await.map_err(AppError::Internal)?;
+    let sessions = state
+        .db
+        .get_live_sessions()
+        .await
+        .map_err(AppError::Internal)?;
     Ok((token_page, plans, sessions))
 }
 
@@ -608,7 +684,10 @@ async fn audit_page(
     Query(query): Query<AuditQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     let page = query.page.unwrap_or(1).max(1);
-    let (entries, total) = state.db.get_audit_log_paged(page, AUDIT_PER_PAGE).await
+    let (entries, total) = state
+        .db
+        .get_audit_log_paged(page, AUDIT_PER_PAGE)
+        .await
         .map_err(AppError::Internal)?;
     let audit_page = crate::db::AuditPage {
         entries,
@@ -654,9 +733,7 @@ async fn settings_submit(
     Form(form): Form<SettingsForm>,
 ) -> Result<impl IntoResponse, AppError> {
     // CSRF validation (constant-time comparison)
-    let csrf_ok: bool = form.csrf_token.as_bytes()
-        .ct_eq(csrf.0.as_bytes())
-        .into();
+    let csrf_ok: bool = form.csrf_token.as_bytes().ct_eq(csrf.0.as_bytes()).into();
     if !csrf_ok {
         return Err(AppError::BadRequest("admin.error.csrf".to_string()));
     }
@@ -667,45 +744,85 @@ async fn settings_submit(
         return Err(AppError::BadRequest("admin.error.name_empty".to_string()));
     }
     if cafe_name.len() > 100 {
-        return Err(AppError::BadRequest("admin.error.name_too_long".to_string()));
+        return Err(AppError::BadRequest(
+            "admin.error.name_too_long".to_string(),
+        ));
     }
     let welcome_message = form.welcome_message.trim();
     if welcome_message.len() > 500 {
-        return Err(AppError::BadRequest("admin.error.welcome_too_long".to_string()));
+        return Err(AppError::BadRequest(
+            "admin.error.welcome_too_long".to_string(),
+        ));
     }
     let theme_color = form.theme_color.trim();
     if !crate::config::is_valid_hex_color(theme_color) {
-        return Err(AppError::BadRequest("admin.error.invalid_color".to_string()));
+        return Err(AppError::BadRequest(
+            "admin.error.invalid_color".to_string(),
+        ));
     }
     let contact_name = form.contact_name.trim();
     if contact_name.len() > 100 {
-        return Err(AppError::BadRequest("admin.error.name_too_long".to_string()));
+        return Err(AppError::BadRequest(
+            "admin.error.name_too_long".to_string(),
+        ));
     }
     let contact_phone = form.contact_phone.trim();
     if contact_phone.len() > 30 {
-        return Err(AppError::BadRequest("admin.error.phone_too_long".to_string()));
+        return Err(AppError::BadRequest(
+            "admin.error.phone_too_long".to_string(),
+        ));
     }
     let contact_hours = form.contact_hours.trim();
     if contact_hours.len() > 100 {
-        return Err(AppError::BadRequest("admin.error.hours_too_long".to_string()));
+        return Err(AppError::BadRequest(
+            "admin.error.hours_too_long".to_string(),
+        ));
     }
 
     // Persist all settings to DB
-    state.db.set_setting("cafe_name", cafe_name).await.map_err(AppError::Internal)?;
-    state.db.set_setting("welcome_message", welcome_message).await.map_err(AppError::Internal)?;
-    state.db.set_setting("theme_color", theme_color).await.map_err(AppError::Internal)?;
-    state.db.set_setting("contact_name", contact_name).await.map_err(AppError::Internal)?;
-    state.db.set_setting("contact_phone", contact_phone).await.map_err(AppError::Internal)?;
-    state.db.set_setting("contact_hours", contact_hours).await.map_err(AppError::Internal)?;
+    state
+        .db
+        .set_setting("cafe_name", cafe_name)
+        .await
+        .map_err(AppError::Internal)?;
+    state
+        .db
+        .set_setting("welcome_message", welcome_message)
+        .await
+        .map_err(AppError::Internal)?;
+    state
+        .db
+        .set_setting("theme_color", theme_color)
+        .await
+        .map_err(AppError::Internal)?;
+    state
+        .db
+        .set_setting("contact_name", contact_name)
+        .await
+        .map_err(AppError::Internal)?;
+    state
+        .db
+        .set_setting("contact_phone", contact_phone)
+        .await
+        .map_err(AppError::Internal)?;
+    state
+        .db
+        .set_setting("contact_hours", contact_hours)
+        .await
+        .map_err(AppError::Internal)?;
 
     // Audit log
-    state.db.audit_log(
-        &state.config.admin.username,
-        "update_settings",
-        Some("setting"),
-        None,
-        Some(&format!("cafe_name={cafe_name}, theme_color={theme_color}")),
-    ).await.ok();
+    state
+        .db
+        .audit_log(
+            &state.config.admin.username,
+            "update_settings",
+            Some("setting"),
+            None,
+            Some(&format!("cafe_name={cafe_name}, theme_color={theme_color}")),
+        )
+        .await
+        .ok();
 
     // Re-read from DB and render the page with success message
     let current = portal_config_from_db(&state).await;
@@ -729,15 +846,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_argon2id_hash_and_verify() {
-        use argon2::{Argon2, Params};
         use argon2::password_hash::{PasswordHasher, SaltString, rand_core::OsRng};
+        use argon2::{Argon2, Params};
 
         // OWASP minimum: m=19456 (19 MiB), t=2, p=1
         let params = Params::new(19456, 2, 1, None).unwrap();
         let argon2 = Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, params);
 
         let salt = SaltString::generate(&mut OsRng);
-        let hash = argon2.hash_password(b"changeme", &salt).unwrap().to_string();
+        let hash = argon2
+            .hash_password(b"changeme", &salt)
+            .unwrap()
+            .to_string();
 
         // Print for config file generation
         println!("Argon2id hash for 'changeme': {hash}");
